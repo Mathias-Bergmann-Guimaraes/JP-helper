@@ -1,7 +1,8 @@
 // Access-gated server for the grammar site. No dependencies — run with `node server.js`.
 //
-// Public port (PORT, default 5173): every visitor sees the lock screen and can send an access
-// request. Only a browser whose request has been approved gets the site in public/.
+// Public port (PORT, default 5173): the site in public/ is open to everyone except the Lessons
+// tab (LOCKED_FILES below). Visitors request access from that tab, and only a browser whose
+// request has been approved can download the lesson files.
 //
 // Admin port (ADMIN_PORT, default 3004): bound to 127.0.0.1, so it is only reachable from this
 // machine. Open http://127.0.0.1:3004 here to approve, decline or revoke requests.
@@ -18,6 +19,14 @@ const ADMIN_HOST = "127.0.0.1";
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 const GATE_DIR = path.join(__dirname, "gate");
+
+// Files only approved browsers may download: the Lessons tab and its data.
+const LOCKED_FILES = ["js/lessons.js", "js/drills.js", "js/lesson-page.js"];
+// Compare resolved paths (case-folded where the file system ignores case) so tricks like
+// /js//lessons.js or /JS/Lessons.js can't slip past.
+const foldCase = (p) => (process.platform === "win32" || process.platform === "darwin" ? p.toLowerCase() : p);
+const LOCKED = new Set(LOCKED_FILES.map((f) => foldCase(path.join(PUBLIC_DIR, f))));
+const isLocked = (file) => file !== null && LOCKED.has(foldCase(file));
 const DATA_FILE = path.join(__dirname, "data", "access.json");
 
 const COOKIE = "jpg_access";
@@ -88,20 +97,26 @@ function sendJson(res, status, data, extra = {}) {
   res.end(JSON.stringify(data));
 }
 
-// Serve a file from `dir` only — never anything outside it, never dotfiles.
-function sendFile(res, dir, urlPath, status = 200) {
+// Map a URL path to a file inside `dir`, or null — never anything outside it, never dotfiles.
+function resolveIn(dir, urlPath) {
   let rel;
   try {
     rel = decodeURIComponent(urlPath);
   } catch {
-    return sendText(res, 400, "Bad request");
+    return null;
   }
   if (rel.endsWith("/")) rel += "index.html";
   const file = path.resolve(dir, "." + path.posix.normalize("/" + rel));
   const inside = path.relative(dir, file);
   if (!inside || inside.startsWith("..") || path.isAbsolute(inside) || inside.split(path.sep).some((p) => p.startsWith("."))) {
-    return sendText(res, 404, "Not found");
+    return null;
   }
+  return file;
+}
+
+function sendFile(res, dir, urlPath, status = 200) {
+  const file = resolveIn(dir, urlPath);
+  if (!file) return sendText(res, 404, "Not found");
   fs.readFile(file, (err, buf) => {
     if (err) return sendText(res, 404, "Not found");
     res.writeHead(status, baseHeaders({
@@ -211,14 +226,12 @@ const publicServer = http.createServer(async (req, res) => {
   }
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Method not allowed");
 
-  if (status === "approved") {
+  // The Lessons files need an approved request; everything else in public/ is open.
+  if (isLocked(resolveIn(PUBLIC_DIR, pathname))) {
+    if (status !== "approved") return sendText(res, 403, "Access required");
     touch(id);
-    return sendFile(res, PUBLIC_DIR, pathname);
   }
-  // Everything else gets the lock screen; scripts, styles and data stay locked.
-  const isPage = pathname === "/" || pathname.endsWith(".html") || !path.extname(pathname);
-  if (isPage) return sendFile(res, GATE_DIR, "/lock.html", 403);
-  return sendText(res, 403, "Access required");
+  return sendFile(res, PUBLIC_DIR, pathname);
 });
 
 /* ---------------------------------------------------------------- Admin server (this machine only) */
@@ -289,7 +302,7 @@ for (const [server, port, name] of [[publicServer, PORT, "PORT"], [adminServer, 
 }
 
 publicServer.listen(PORT, HOST, () => {
-  console.log(`Site (locked):  http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
+  console.log(`Site:           http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
 });
 adminServer.listen(ADMIN_PORT, ADMIN_HOST, () => {
   console.log(`Admin (local):  http://${ADMIN_HOST}:${ADMIN_PORT}  — approve access requests here`);

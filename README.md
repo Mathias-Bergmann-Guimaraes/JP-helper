@@ -1,10 +1,11 @@
 # Bunpō — Visual Japanese Grammar
 
-A visual grammar course that follows the lesson order of *Minna no Nihongo*: colour-coded
-sentence blocks, particles, verb conjugation, patterns, and 50 practice sentences plus a test
-for every lesson.
+A visual Japanese grammar site: colour-coded sentence blocks, particles, verb conjugation,
+adjectives, verb patterns and a practice page — plus a private 50-lesson course with practice
+sentences and a test for every lesson.
 
-The site is private. Visitors only see a **Request access** screen until you approve them.
+Everything is open except the **Lessons** tab. Visitors send an access request from that tab,
+and only browsers you approve can load the lessons.
 
 ## Run it
 
@@ -18,8 +19,9 @@ npm start
 - **Admin:** http://127.0.0.1:3004 — open this **on the server itself** to see requests and
   approve, decline or revoke them. It only listens on 127.0.0.1, so nobody else can reach it.
 
-Each approval unlocks the site for that one browser (it's stored in a cookie). Requests are
-saved in `data/access.json`, which is not committed.
+Each approval unlocks the Lessons tab for that one browser (it's stored in a cookie). The locked
+files are `public/js/lessons.js`, `drills.js` and `lesson-page.js` (see `LOCKED_FILES` in
+`server.js`). Requests are saved in `data/access.json`, which is not committed.
 
 Settings via environment variables: `PORT` (default 5173), `HOST` (default 0.0.0.0) and
 `ADMIN_PORT` (default 3004).
@@ -27,5 +29,5 @@ Settings via environment variables: `PORT` (default 5173), `HOST` (default 0.0.0
 ## Notes
 
 - The lock only works when the site is served by `server.js`. Static hosting such as GitHub
-  Pages would show the files to everyone.
+  Pages — or a public copy of this repository — shows the lesson files to everyone.
 - If you put the site behind HTTPS (a reverse proxy), keep the admin port off the proxy.
