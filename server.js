@@ -3,8 +3,8 @@
 // Public port (PORT, default 5173): every visitor sees the lock screen and can send an access
 // request. Only a browser whose request has been approved gets the site in public/.
 //
-// Admin port (ADMIN_PORT, default 5174): bound to 127.0.0.1, so it is only reachable from this
-// machine. Open http://127.0.0.1:5174 here to approve, decline or revoke requests.
+// Admin port (ADMIN_PORT, default 3004): bound to 127.0.0.1, so it is only reachable from this
+// machine. Open http://127.0.0.1:3004 here to approve, decline or revoke requests.
 
 const http = require("http");
 const fs = require("fs");
@@ -13,7 +13,7 @@ const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT) || 5173;
 const HOST = process.env.HOST || "0.0.0.0";
-const ADMIN_PORT = Number(process.env.ADMIN_PORT) || 5174;
+const ADMIN_PORT = Number(process.env.ADMIN_PORT) || 3004;
 const ADMIN_HOST = "127.0.0.1";
 
 const PUBLIC_DIR = path.join(__dirname, "public");

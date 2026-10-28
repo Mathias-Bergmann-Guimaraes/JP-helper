@@ -15,14 +15,14 @@ npm start
 ```
 
 - **Site:** http://localhost:5173 — share this address (or your server's) with learners.
-- **Admin:** http://127.0.0.1:5174 — open this **on the server itself** to see requests and
+- **Admin:** http://127.0.0.1:3004 — open this **on the server itself** to see requests and
   approve, decline or revoke them. It only listens on 127.0.0.1, so nobody else can reach it.
 
 Each approval unlocks the site for that one browser (it's stored in a cookie). Requests are
 saved in `data/access.json`, which is not committed.
 
 Settings via environment variables: `PORT` (default 5173), `HOST` (default 0.0.0.0) and
-`ADMIN_PORT` (default 5174).
+`ADMIN_PORT` (default 3004).
 
 ## Notes
 
