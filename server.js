@@ -224,13 +224,24 @@ const publicServer = http.createServer(async (req, res) => {
 /* ---------------------------------------------------------------- Admin server (this machine only) */
 
 const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
-const ADMIN_ORIGINS = new Set([`http://127.0.0.1:${ADMIN_PORT}`, `http://localhost:${ADMIN_PORT}`]);
+const LOCAL_NAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+// True for localhost / 127.0.0.1 / [::1] on any port, so an SSH tunnel such as
+// `ssh -L 8080:127.0.0.1:3004 …` works from whatever local port you pick.
+function isLocalHost(host) {
+  try {
+    return LOCAL_NAMES.has(new URL(`http://${host}`).hostname);
+  } catch {
+    return false;
+  }
+}
 
 const adminServer = http.createServer(async (req, res) => {
   // Bound to 127.0.0.1 already; these checks also stop DNS-rebinding and cross-site requests
   // from a web page that happens to be open in a browser on this machine.
+  const host = req.headers.host || "";
   if (!LOOPBACK.has(req.socket.remoteAddress)) return sendText(res, 403, "Local access only");
-  if (!ADMIN_ORIGINS.has(`http://${req.headers.host}`)) return sendText(res, 403, "Unexpected host");
+  if (!isLocalHost(host)) return sendText(res, 403, "Unexpected host");
 
   const { pathname } = new URL(req.url, "http://localhost");
 
@@ -242,8 +253,10 @@ const adminServer = http.createServer(async (req, res) => {
     return sendJson(res, 200, list);
   }
   if (req.method === "POST" && pathname === "/api/decide") {
+    // A decision must come from the admin page itself: same origin as the host it was sent to,
+    // so another app on a different localhost port can't approve anyone.
     const origin = req.headers.origin;
-    if ((origin && !ADMIN_ORIGINS.has(origin)) || req.headers["x-admin"] !== "1") {
+    if ((origin && origin !== `http://${host}`) || req.headers["x-admin"] !== "1") {
       return sendText(res, 403, "Forbidden");
     }
     let body;
@@ -265,6 +278,15 @@ const adminServer = http.createServer(async (req, res) => {
   }
   sendText(res, 404, "Not found");
 });
+
+for (const [server, port, name] of [[publicServer, PORT, "PORT"], [adminServer, ADMIN_PORT, "ADMIN_PORT"]]) {
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`Port ${port} is already in use — is the server already running? Set ${name}=… to use another port.`);
+    } else console.error(err);
+    process.exit(1);
+  });
+}
 
 publicServer.listen(PORT, HOST, () => {
   console.log(`Site (locked):  http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
