@@ -21,7 +21,7 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const GATE_DIR = path.join(__dirname, "gate");
 
 // Files only approved browsers may download: the Lessons tab and its data.
-const LOCKED_FILES = ["js/lessons.js", "js/drills.js", "js/lesson-page.js"];
+const LOCKED_FILES = ["js/lessons.js", "js/drills.js", "js/lesson-prompts.js", "js/lesson-page.js"];
 // Compare resolved paths (case-folded where the file system ignores case) so tricks like
 // /js//lessons.js or /JS/Lessons.js can't slip past.
 const foldCase = (p) => (process.platform === "win32" || process.platform === "darwin" ? p.toLowerCase() : p);

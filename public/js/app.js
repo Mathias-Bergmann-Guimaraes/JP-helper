@@ -40,7 +40,7 @@ function showTab(id) {
 // access is approved. Visitors request access from this tab with a username and password, and
 // can log in with them on any other browser. The other tabs are open to everyone.
 
-const LESSON_FILES = ["js/lessons.js", "js/drills.js", "js/lesson-page.js"];
+const LESSON_FILES = ["js/lessons.js", "js/drills.js", "js/lesson-prompts.js", "js/lesson-page.js"];
 let lessonsOpen = false;
 let accessTimer = null;
 let access = { status: "none" }; // last answer from the server: { status, code, username }

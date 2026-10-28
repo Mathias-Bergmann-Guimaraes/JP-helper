@@ -321,6 +321,48 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .lp-link:hover { background: var(--c); color: var(--surface); }
 .lesson-nav { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
 
+/* Study with your AI */
+.ai-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-chip {
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-weight: 600;
+  font-size: .86rem;
+  cursor: pointer;
+}
+.ai-chip:hover { border-color: var(--muted); }
+.ai-chip[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--surface); }
+.ai-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 14px 0 10px; }
+.ai-desc { margin: 0; color: var(--muted); }
+.ai-focus { display: flex; align-items: center; gap: 8px; font-weight: 600; min-width: 0; }
+.ai-focus select {
+  font: inherit;
+  font-weight: 500;
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.ai-text {
+  display: block;
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: .86rem/1.6 var(--ui), var(--jp);
+}
+.ai-text:focus { outline: none; border-color: var(--accent); }
+.ai-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; margin-top: 12px; }
+
 /* Lesson status, practice & test */
 .lstatus {
   display: inline-flex;

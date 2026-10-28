@@ -1,4 +1,4 @@
-// The Lessons tab: lesson list, practice and tests. Only sent to browsers with approved access
+// The Lessons tab: lesson list, AI study prompts, practice and tests. Only sent to browsers with approved access
 // (see server.js); loaded after app.js and uses its helpers.
 
 /* ---------------------------------------------------------------- Lessons (Minna no Nihongo order) */
@@ -90,6 +90,11 @@ function showLesson(n, scroll) {
         </div>`).join("")}
     </div>
     <div class="lsection">
+      <h3>Study with your AI</h3>
+      <p class="small muted">Ready-made prompts that already know this lesson. Pick one, copy it, and paste it into the chatbot you use.</p>
+    </div>
+    <div class="card ai-card" id="lAi"></div>
+    <div class="lsection">
       <h3>Practice</h3>
       <p class="small muted">${DRILLS[l.n].length} sentences from this lesson, mixed with meaning questions${lessonForms(l).length ? " and verb-form questions" : ""}. Go for as long as you like.</p>
     </div>
@@ -114,6 +119,7 @@ function showLesson(n, scroll) {
   $$("[data-p]", d).forEach((b) => (b.onclick = () => goTo(l.points[+b.dataset.p].link)));
   $$("[data-go]", d).forEach((b) => (b.onclick = () => showLesson(+b.dataset.go, true)));
   renderLessonStatus(l);
+  renderAiPrompts(l);
   startLessonPractice(l);
   showTestIntro(l);
   updateLessonPath();

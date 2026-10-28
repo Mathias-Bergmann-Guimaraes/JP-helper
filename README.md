@@ -26,7 +26,7 @@ Passwords are stored only as scrypt hashes; failed logins are limited to 10 per 
 IP and per account. Browsers approved before logins existed are offered a "Create login" card in
 the Lessons tab so their access can move to other devices.
 
-The locked files are `public/js/lessons.js`, `drills.js` and `lesson-page.js` (see `LOCKED_FILES`
+The locked files are `public/js/lessons.js`, `drills.js`, `lesson-prompts.js` and `lesson-page.js` (see `LOCKED_FILES`
 in `server.js`). Accounts, requests and sessions are saved in `data/access.json`, which is not
 committed — older copies of that file are upgraded automatically.
 
