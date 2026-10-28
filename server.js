@@ -47,33 +47,97 @@ const TYPES = {
 
 /* ---------------------------------------------------------------- Store */
 
-// Requests are keyed by the SHA-256 of the visitor's cookie token, so the file never holds a
-// usable cookie. { [id]: { name, message, ip, ua, status, requestedAt, decidedAt, lastSeen } }
-let requests = loadRequests();
+// data/access.json holds three maps:
+//   requests: { [id]: { name, message, ip, ua, status, requestedAt, decidedAt, lastSeen, account? } }
+//   accounts: { [lower-case username]: { username, password, request } }  (password = scrypt hash)
+//   sessions: { [sha256(cookie token)]: { request, createdAt } }          (one per signed-in browser)
+// Approving, declining or revoking acts on a request. An account ties a username and password to
+// one request, so every browser that logs in shares its access. The file never holds a usable
+// cookie or a plain password.
+const db = loadDb();
+const { requests, accounts, sessions } = db;
+const MAX_SESSIONS_PER_REQUEST = 20;
 
-function loadRequests() {
+function loadDb() {
+  let raw = {};
   try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  } catch {
-    return {};
-  }
+    raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  } catch { /* no file yet */ }
+  if (raw.requests) return { requests: raw.requests, accounts: raw.accounts || {}, sessions: raw.sessions || {} };
+  // First version: browser-only requests keyed by the hash of that browser's token.
+  const sessions = {};
+  for (const [id, r] of Object.entries(raw)) sessions[id] = { request: id, createdAt: r.requestedAt };
+  return { requests: raw, accounts: {}, sessions };
 }
 
-function saveRequests() {
+function saveDb() {
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
   const tmp = DATA_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(requests, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
   fs.renameSync(tmp, DATA_FILE);
 }
 
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 const shortCode = (id) => id.slice(0, 6).toUpperCase();
 
-function visitorId(req) {
+// The signed-in browser behind this request: { sid, id } or null.
+function sessionOf(req) {
   const m = new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]{64})(?:;|$)`).exec(req.headers.cookie || "");
   if (!m) return null;
-  const id = sha256(m[1]);
-  return requests[id] ? id : null;
+  const sid = sha256(m[1]);
+  const s = sessions[sid];
+  return s && requests[s.request] ? { sid, id: s.request } : null;
+}
+
+function accessState(id) {
+  if (!id) return { status: "none", code: null, username: null };
+  const r = requests[id];
+  return { status: r.status, code: shortCode(id), username: r.account ? accounts[r.account].username : null };
+}
+
+// Start a session for this browser on request `id`; returns the Set-Cookie header.
+function startSession(req, id) {
+  const token = crypto.randomBytes(32).toString("hex");
+  sessions[sha256(token)] = { request: id, createdAt: new Date().toISOString() };
+  const mine = Object.entries(sessions).filter(([, s]) => s.request === id);
+  mine.sort((a, b) => a[1].createdAt.localeCompare(b[1].createdAt));
+  for (const [sid] of mine.slice(0, Math.max(0, mine.length - MAX_SESSIONS_PER_REQUEST))) delete sessions[sid];
+  return cookie(req, token, COOKIE_MAX_AGE);
+}
+
+function cookie(req, value, maxAge) {
+  const secure = req.socket.encrypted || req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
+  return `${COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+/* ---------------------------------------------------------------- Passwords */
+
+const scrypt = require("util").promisify(crypto.scrypt);
+const USERNAME_RE = /^[A-Za-z0-9_.-]{3,24}$/;
+const DUMMY_HASH = "scrypt$00000000000000000000000000000000$" + "0".repeat(64);
+
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const key = await scrypt(password, salt, 32);
+  return `scrypt$${salt.toString("hex")}$${key.toString("hex")}`;
+}
+
+async function passwordMatches(password, stored) {
+  const [, salt, hash] = stored.split("$");
+  const key = await scrypt(password, Buffer.from(salt, "hex"), 32);
+  return crypto.timingSafeEqual(key, Buffer.from(hash, "hex"));
+}
+
+// Validate a username/password pair from a request body: { username, key, password } or { error }.
+function readCredentials(body, isNew) {
+  const username = String(body.username ?? "").trim();
+  const password = String(body.password ?? "");
+  if (!USERNAME_RE.test(username)) {
+    return { error: isNew ? "Usernames are 3–24 letters, numbers, dots, dashes or underscores." : "Wrong username or password." };
+  }
+  if (isNew && password.length < 8) return { error: "Passwords need at least 8 characters." };
+  if (password.length > 200) return { error: "That password is too long." };
+  return { username, key: username.toLowerCase(), password };
 }
 
 /* ---------------------------------------------------------------- Responses */
@@ -156,52 +220,109 @@ const cleanText = (v, max) => String(v ?? "").replace(/[\u0000-\u001f\u007f]/g, 
 
 /* ---------------------------------------------------------------- Public server */
 
-const recentByIp = new Map(); // ip -> timestamps of recent requests
+// Sliding-window counters: key -> timestamps. Used for new requests and for failed logins.
+const hits = new Map();
+function tooMany(key, limit, windowMs) {
+  const since = Date.now() - windowMs;
+  const times = (hits.get(key) || []).filter((t) => t > since);
+  hits.set(key, times);
+  return times.length >= limit;
+}
+const note = (key) => hits.get(key).push(Date.now());
 
-function rateLimited(ip) {
-  const hourAgo = Date.now() - 60 * 60 * 1000;
-  const times = (recentByIp.get(ip) || []).filter((t) => t > hourAgo);
-  recentByIp.set(ip, times);
-  return times.length >= REQUESTS_PER_IP_PER_HOUR;
+const LOGIN_FAILS = 10; // per IP and per account, every 15 minutes
+const LOGIN_WINDOW = 15 * 60 * 1000;
+
+async function body(req, res) {
+  try {
+    return await readJson(req);
+  } catch {
+    sendJson(res, 400, { error: "Could not read the request." });
+    return null;
+  }
 }
 
-async function handleAccessRequest(req, res, id) {
-  if (id) return sendJson(res, 200, { status: requests[id].status, code: shortCode(id) });
-
-  let body;
-  try {
-    body = await readJson(req);
-  } catch {
-    return sendJson(res, 400, { error: "Could not read the request." });
-  }
-  const name = cleanText(body.name, 40);
-  const message = cleanText(body.message, 300);
-  if (!name) return sendJson(res, 400, { error: "Please enter your name." });
+// New visitor: create an account and a pending request, and sign this browser in.
+async function handleRequest(req, res, me) {
+  if (me) return sendJson(res, 200, accessState(me.id));
+  const b = await body(req, res);
+  if (!b) return;
+  const cred = readCredentials(b, true);
+  if (cred.error) return sendJson(res, 400, { error: cred.error });
+  if (accounts[cred.key]) return sendJson(res, 409, { error: "That username is taken — log in instead, or pick another." });
 
   const ip = req.socket.remoteAddress || "";
-  if (rateLimited(ip)) return sendJson(res, 429, { error: "Too many requests. Please try again later." });
+  if (tooMany(`req:${ip}`, REQUESTS_PER_IP_PER_HOUR, 60 * 60 * 1000)) {
+    return sendJson(res, 429, { error: "Too many requests. Please try again later." });
+  }
   const pending = Object.values(requests).filter((r) => r.status === "pending").length;
   if (pending >= MAX_PENDING) return sendJson(res, 503, { error: "Too many open requests. Please try again later." });
 
-  const token = crypto.randomBytes(32).toString("hex");
-  const newId = sha256(token);
-  requests[newId] = {
-    name,
-    message,
+  const id = crypto.randomBytes(32).toString("hex");
+  requests[id] = {
+    name: cred.username,
+    message: cleanText(b.message, 300),
     ip,
     ua: cleanText(req.headers["user-agent"], 200),
     status: "pending",
     requestedAt: new Date().toISOString(),
+    account: cred.key,
   };
-  saveRequests();
-  recentByIp.get(ip).push(Date.now());
+  accounts[cred.key] = { username: cred.username, password: await hashPassword(cred.password), request: id };
+  const setCookie = startSession(req, id);
+  saveDb();
+  note(`req:${ip}`);
 
-  console.log(`\x1b[33m● Access request\x1b[0m ${shortCode(newId)} from "${name}" (${ip}) — review at http://${ADMIN_HOST}:${ADMIN_PORT}`);
+  console.log(`\x1b[33m● Access request\x1b[0m ${shortCode(id)} from "${cred.username}" (${ip}) — review at http://${ADMIN_HOST}:${ADMIN_PORT}`);
+  sendJson(res, 200, accessState(id), { "Set-Cookie": setCookie });
+}
 
-  const secure = req.socket.encrypted || req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
-  sendJson(res, 200, { status: "pending", code: shortCode(newId) }, {
-    "Set-Cookie": `${COOKIE}=${token}; Path=/; Max-Age=${COOKIE_MAX_AGE}; HttpOnly; SameSite=Lax${secure}`,
-  });
+// Sign this browser in to an existing account (any status — pending and declined show as such).
+async function handleLogin(req, res, me) {
+  const b = await body(req, res);
+  if (!b) return;
+  const ip = req.socket.remoteAddress || "";
+  const cred = readCredentials(b, false);
+  const acct = cred.error ? null : accounts[cred.key];
+  if (tooMany(`login:${ip}`, LOGIN_FAILS, LOGIN_WINDOW) || (acct && tooMany(`login:@${cred.key}`, LOGIN_FAILS, LOGIN_WINDOW))) {
+    return sendJson(res, 429, { error: "Too many failed attempts. Please wait 15 minutes." });
+  }
+  // Always run one hash check so unknown usernames take as long as wrong passwords.
+  const ok = await passwordMatches(cred.password || "", acct ? acct.password : DUMMY_HASH);
+  if (!acct || !ok || !requests[acct.request]) {
+    note(`login:${ip}`);
+    if (acct) note(`login:@${cred.key}`);
+    return sendJson(res, 401, { error: "Wrong username or password." });
+  }
+  if (me) delete sessions[me.sid];
+  const setCookie = startSession(req, acct.request);
+  saveDb();
+  sendJson(res, 200, accessState(acct.request), { "Set-Cookie": setCookie });
+}
+
+function handleLogout(req, res, me) {
+  if (me) {
+    delete sessions[me.sid];
+    saveDb();
+  }
+  sendJson(res, 200, accessState(null), { "Set-Cookie": cookie(req, "", 0) });
+}
+
+// A browser that was approved before accounts existed: give its access a username and password.
+async function handleLink(req, res, me) {
+  if (!me) return sendJson(res, 401, { error: "This browser has no access to link." });
+  const r = requests[me.id];
+  if (r.account) return sendJson(res, 409, { error: "This access already has a login." });
+  const b = await body(req, res);
+  if (!b) return;
+  const cred = readCredentials(b, true);
+  if (cred.error) return sendJson(res, 400, { error: cred.error });
+  if (accounts[cred.key]) return sendJson(res, 409, { error: "That username is taken — pick another." });
+  accounts[cred.key] = { username: cred.username, password: await hashPassword(cred.password), request: me.id };
+  r.account = cred.key;
+  saveDb();
+  console.log(`  login created for ${shortCode(me.id)}: ${cred.username}`);
+  sendJson(res, 200, accessState(me.id));
 }
 
 function touch(id) {
@@ -209,27 +330,32 @@ function touch(id) {
   const now = Date.now();
   if (!r.lastSeen || now - Date.parse(r.lastSeen) > 10 * 60 * 1000) {
     r.lastSeen = new Date(now).toISOString();
-    saveRequests();
+    saveDb();
   }
 }
 
+const ACCESS_ROUTES = {
+  "/access/request": handleRequest,
+  "/access/login": handleLogin,
+  "/access/logout": handleLogout,
+  "/access/link": handleLink,
+};
+
 const publicServer = http.createServer(async (req, res) => {
   const { pathname } = new URL(req.url, "http://localhost");
-  const id = visitorId(req);
-  const status = id ? requests[id].status : "none";
+  const me = sessionOf(req);
 
-  if (pathname === "/access/status" && req.method === "GET") {
-    return sendJson(res, 200, { status, code: id ? shortCode(id) : null });
-  }
-  if (pathname === "/access/request" && req.method === "POST") {
-    return handleAccessRequest(req, res, id);
+  if (pathname === "/access/status" && req.method === "GET") return sendJson(res, 200, accessState(me && me.id));
+  if (ACCESS_ROUTES[pathname]) {
+    if (req.method !== "POST") return sendText(res, 405, "Method not allowed");
+    return ACCESS_ROUTES[pathname](req, res, me);
   }
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Method not allowed");
 
   // The Lessons files need an approved request; everything else in public/ is open.
   if (isLocked(resolveIn(PUBLIC_DIR, pathname))) {
-    if (status !== "approved") return sendText(res, 403, "Access required");
-    touch(id);
+    if (!me || requests[me.id].status !== "approved") return sendText(res, 403, "Access required");
+    touch(me.id);
   }
   return sendFile(res, PUBLIC_DIR, pathname);
 });
@@ -260,8 +386,16 @@ const adminServer = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && pathname === "/") return sendFile(res, GATE_DIR, "/admin.html");
   if (req.method === "GET" && pathname === "/api/requests") {
+    const browsers = {};
+    for (const s of Object.values(sessions)) browsers[s.request] = (browsers[s.request] || 0) + 1;
     const list = Object.entries(requests)
-      .map(([id, r]) => ({ id, code: shortCode(id), ...r }))
+      .map(([id, r]) => ({
+        id,
+        code: shortCode(id),
+        ...r,
+        username: r.account ? accounts[r.account].username : null,
+        browsers: browsers[id] || 0,
+      }))
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
     return sendJson(res, 200, list);
   }
@@ -280,12 +414,16 @@ const adminServer = http.createServer(async (req, res) => {
     }
     const r = requests[body.id];
     if (!r) return sendJson(res, 404, { error: "No such request" });
-    if (body.action === "delete") delete requests[body.id];
-    else if (body.action === "approve" || body.action === "deny") {
+    if (body.action === "delete") {
+      // Removes the login and signs out every browser, so the username is free again.
+      delete requests[body.id];
+      if (r.account) delete accounts[r.account];
+      for (const [sid, s] of Object.entries(sessions)) if (s.request === body.id) delete sessions[sid];
+    } else if (body.action === "approve" || body.action === "deny") {
       r.status = body.action === "approve" ? "approved" : "denied";
       r.decidedAt = new Date().toISOString();
     } else return sendJson(res, 400, { error: "Unknown action" });
-    saveRequests();
+    saveDb();
     console.log(`  ${body.action} ${shortCode(body.id)}${r.name ? ` (${r.name})` : ""}`);
     return sendJson(res, 200, { ok: true });
   }

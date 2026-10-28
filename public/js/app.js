@@ -37,12 +37,14 @@ function showTab(id) {
 /* ---------------------------------------------------------------- Lessons (locked) */
 
 // The Lessons tab is private. Its code and data are only sent by server.js to browsers whose
-// access request was approved; everyone else gets a request form in this tab. The other tabs
-// are open to everyone.
+// access is approved. Visitors request access from this tab with a username and password, and
+// can log in with them on any other browser. The other tabs are open to everyone.
 
 const LESSON_FILES = ["js/lessons.js", "js/drills.js", "js/lesson-page.js"];
 let lessonsOpen = false;
 let accessTimer = null;
+let access = { status: "none" }; // last answer from the server: { status, code, username }
+let lockMode = "request"; // which form the locked tab shows: "request" or "login"
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -66,6 +68,49 @@ async function accessStatus() {
   }
 }
 
+async function post(url, data) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const json = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(json.error || "Something went wrong. Please try again later.");
+  return json;
+}
+
+function setAccess(state) {
+  access = state;
+  drawAccount();
+}
+
+// Top-bar account control: who is signed in, or a way to log in on this browser.
+function drawAccount() {
+  const box = $("#account");
+  if (access.username) {
+    box.innerHTML = `<span class="account-name"></span><button class="account-btn" type="button">Log out</button>`;
+    $(".account-name", box).textContent = access.username;
+    $("button", box).onclick = logOut;
+  } else if (access.status === "none") {
+    box.innerHTML = `<button class="account-btn" type="button">Log in</button>`;
+    $("button", box).onclick = () => {
+      lockMode = "login";
+      if (!lessonsOpen) drawLock(access);
+      showTab("lessons");
+      window.scrollTo({ top: 0 });
+    };
+  } else box.innerHTML = "";
+}
+
+async function logOut() {
+  try {
+    await post("/access/logout", {});
+  } finally {
+    location.hash = "";
+    location.reload();
+  }
+}
+
 async function openLessons() {
   try {
     await Promise.all(LESSON_FILES.map(loadScript));
@@ -76,60 +121,93 @@ async function openLessons() {
   clearInterval(accessTimer);
   $('#tabs [data-tab="lessons"]').classList.remove("locked");
   renderLessons();
+  if (access.status === "approved" && !access.username) showLinkCard();
   return true;
 }
 
 async function setupLessons() {
-  const state = await accessStatus();
-  if ((state.status === "approved" || state.status === "offline") && (await openLessons())) return;
+  setAccess(await accessStatus());
+  if ((access.status === "approved" || access.status === "offline") && (await openLessons())) return;
   $('#tabs [data-tab="lessons"]').classList.add("locked");
   $("#lessons").innerHTML = `
     <div class="card lock-card">
       <div class="lt-seal" id="lockSeal" lang="ja" aria-hidden="true"></div>
       <div id="lockBody"></div>
     </div>`;
-  drawLock(state);
+  drawLock(access);
 }
+
+const USER_FIELDS = (newPassword) => `
+  <label>Username ${newPassword ? `<small class="muted">(3–24 letters, numbers, . _ -)</small>` : ""}
+    <input name="username" maxlength="24" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+  <label>Password ${newPassword ? `<small class="muted">(at least 8 characters)</small>` : ""}
+    <input name="password" type="password" maxlength="200" ${newPassword ? `minlength="8" autocomplete="new-password"` : `autocomplete="current-password"`} required></label>`;
+
+const ASK_FORMS = {
+  request: {
+    url: "/access/request",
+    button: "Request access",
+    intro: `The lesson course — 50 lessons with practice and a test each — is shared with invited learners.
+      Pick a username and password and send a request. Once the owner approves it, you can log in with
+      them on any browser. Everything else on this site is open to all.`,
+    fields: USER_FIELDS(true) + `
+      <label>Message <small class="muted">(optional — who you are, how you found it)</small>
+        <textarea name="message" maxlength="300"></textarea></label>`,
+  },
+  login: {
+    url: "/access/login",
+    button: "Log in",
+    intro: "Already sent a request? Log in with your username and password — on this or any other browser.",
+    fields: USER_FIELDS(false),
+  },
+};
+
+const SIGNED_IN = `<p class="lock-who">Signed in as <b id="lockUser"></b> · <button type="button" class="link-btn" id="lockLogout">Log out</button></p>`;
 
 const LOCK_VIEWS = {
   ask: {
     seal: ["鍵", "pass"],
-    html: `
-      <h2>The lessons are private</h2>
-      <p class="muted">The lesson course — 50 lessons with practice and a test each — is shared with invited
-      learners. Send a request and the owner can let you in. Everything else on this site is open to all.</p>
-      <form class="lock-form" id="lockForm">
-        <label>Your name <input name="name" maxlength="40" autocomplete="name" required></label>
-        <label>Message <small class="muted">(optional — who you are, how you found it)</small>
-          <textarea name="message" maxlength="300"></textarea></label>
-        <p class="lock-error" id="lockError" role="alert"></p>
-        <button class="btn primary" type="submit">Request access</button>
-      </form>`,
+    html: () => {
+      const f = ASK_FORMS[lockMode];
+      const tab = (mode, label) => `<button type="button" data-mode="${mode}" class="${lockMode === mode ? "active" : ""}">${label}</button>`;
+      return `
+        <h2>The lessons are private</h2>
+        <p class="muted">${f.intro}</p>
+        <div class="seg lock-seg">${tab("request", "Request access")}${tab("login", "Log in")}</div>
+        <form class="lock-form" id="lockForm">
+          ${f.fields}
+          <p class="lock-error" id="lockError" role="alert"></p>
+          <button class="btn primary" type="submit">${f.button}</button>
+        </form>`;
+    },
   },
   pending: {
     seal: ["待", "wait"],
-    html: `
+    html: (s) => `
       <h2>Request sent</h2>
       <p class="muted">Your request code is</p>
       <div class="lock-code" id="lockCode"></div>
       <p class="muted">The owner approves requests on their own computer. This tab opens by itself as soon
-      as you're let in — or come back later in this browser.</p>
-      <span class="lock-live">Waiting for approval</span>`,
+      as you're let in${s.username ? " — and on your other browsers, just log in with the same username and password" : ""}.</p>
+      <span class="lock-live">Waiting for approval</span>
+      ${s.username ? SIGNED_IN : ""}`,
   },
   denied: {
     seal: ["否", "no"],
-    html: `
+    html: (s) => `
       <h2>Request declined</h2>
-      <p class="muted">The owner hasn't granted access to this browser. The other tabs are still open to you.</p>`,
+      <p class="muted">The owner hasn't granted access to the lessons. The other tabs are still open to you.</p>
+      ${s.username ? SIGNED_IN : ""}`,
   },
 };
 
 function drawLock(state) {
+  setAccess(state);
   if (state.status === "approved") return openLessons();
   const view = state.status === "pending" || state.status === "denied" ? state.status : "ask";
   const seal = $("#lockSeal");
   [seal.textContent, seal.className] = [LOCK_VIEWS[view].seal[0], `lt-seal ${LOCK_VIEWS[view].seal[1]}`];
-  $("#lockBody").innerHTML = LOCK_VIEWS[view].html;
+  $("#lockBody").innerHTML = LOCK_VIEWS[view].html(state);
 
   if (view === "pending") {
     $("#lockCode").textContent = state.code || "";
@@ -138,28 +216,56 @@ function drawLock(state) {
     clearInterval(accessTimer);
     accessTimer = null;
   }
-  if (view === "ask") $("#lockForm").onsubmit = sendAccessRequest;
+  if (state.username) {
+    $("#lockUser").textContent = state.username;
+    $("#lockLogout").onclick = logOut;
+  }
+  if (view === "ask") {
+    $$(".lock-seg button").forEach((b) => (b.onclick = () => {
+      lockMode = b.dataset.mode;
+      drawLock(access);
+    }));
+    $("#lockForm").onsubmit = (e) => submitForm(e, ASK_FORMS[lockMode].url, "#lockError", drawLock);
+  }
 }
 
-async function sendAccessRequest(e) {
+async function submitForm(e, url, errorSel, onDone) {
   e.preventDefault();
   const form = e.target;
-  const button = form.querySelector("button");
-  $("#lockError").textContent = "";
+  const button = form.querySelector("button[type=submit]");
+  $(errorSel).textContent = "";
   button.disabled = true;
   try {
-    const r = await fetch("/access/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.elements.name.value, message: form.elements.message.value }),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || "Couldn't send the request. Please try again later.");
-    drawLock(data);
+    onDone(await post(url, Object.fromEntries(new FormData(form))));
   } catch (err) {
-    $("#lockError").textContent = err.message;
+    $(errorSel).textContent = err.message;
     button.disabled = false;
   }
+}
+
+// Browsers approved before logins existed: offer to tie that access to a username and password.
+function showLinkCard() {
+  const card = document.createElement("div");
+  card.className = "card link-card";
+  card.innerHTML = `
+    <div>
+      <h3>Use the lessons on your other devices</h3>
+      <p class="muted small">This browser has access, but it isn't tied to a login yet. Pick a username
+      and password, then log in with them on any browser.</p>
+    </div>
+    <form class="lock-form" id="linkForm">
+      <input name="username" maxlength="24" autocomplete="username" autocapitalize="none" spellcheck="false"
+        placeholder="Username" aria-label="Username" required>
+      <input name="password" type="password" minlength="8" maxlength="200" autocomplete="new-password"
+        placeholder="Password (8+ characters)" aria-label="Password" required>
+      <button class="btn primary" type="submit">Create login</button>
+      <p class="lock-error" id="linkError" role="alert"></p>
+    </form>`;
+  $("#lessons").prepend(card);
+  $("#linkForm").onsubmit = (e) => submitForm(e, "/access/link", "#linkError", (state) => {
+    setAccess(state);
+    card.remove();
+  });
 }
 
 /* ---------------------------------------------------------------- Sentence structure */

@@ -44,6 +44,7 @@
     .req.denied { --c: var(--bad); }
     .who { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
     .code { font-weight: 700; letter-spacing: .1em; background: var(--surface-2); border-radius: 6px; padding: 1px 7px; font-size: .8rem; margin-left: 6px; }
+    .tag { font-size: .72rem; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 2px; }
     .msg { grid-column: 1 / -1; margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
     .meta { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
     .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -61,7 +62,7 @@
 <body>
   <main>
     <header><span class="brand-mark" lang="ja">文</span><h1>Access requests</h1></header>
-    <p class="lead">Only reachable from this computer. Approving a request unlocks the site for that one browser.</p>
+    <p class="lead">Only reachable from this computer. Approving a request unlocks the Lessons tab for that login on every browser it signs in from. Remove deletes the login and signs everyone out of it.</p>
 
     <h2>Waiting <span class="count" id="nPending">0</span></h2>
     <div class="list" id="pending"></div>
@@ -89,8 +90,9 @@
 
     function card(r) {
       const c = el("div", `req ${r.status}`);
-      const who = el("div", "who", r.name);
+      const who = el("div", "who", r.username || r.name);
       who.append(el("span", "code", r.code));
+      if (!r.username) who.append(el("span", "tag", "browser only"));
       const actions = el("div", "actions");
       for (const [action, label, cls] of ACTIONS[r.status]) {
         const b = el("button", cls, label);
@@ -99,7 +101,7 @@
       }
       c.append(who, actions);
       if (r.message) c.append(el("p", "msg", r.message));
-      const bits = [`Requested ${when(r.requestedAt)}`, r.ip];
+      const bits = [`Requested ${when(r.requestedAt)}`, r.ip, `${r.browsers} browser${r.browsers === 1 ? "" : "s"} signed in`];
       if (r.decidedAt) bits.push(`${r.status === "approved" ? "Approved" : "Declined"} ${when(r.decidedAt)}`);
       if (r.lastSeen) bits.push(`last visit ${when(r.lastSeen)}`);
       if (r.ua) bits.push(r.ua);
