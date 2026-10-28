@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visual Japanese Grammar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" lang="ja">文</span>
+      <span class="brand-text">Bunpō<small>Visual Japanese Grammar</small></span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="lessons">Lessons</button>
+      <button data-tab="structure">Sentences</button>
+      <button data-tab="particles">Particles</button>
+      <button data-tab="verbs">Verbs</button>
+      <button data-tab="adjectives">Adjectives</button>
+      <button data-tab="patterns">Patterns</button>
+      <button data-tab="practice">Practice</button>
+    </nav>
+    <label class="switch">
+      <input type="checkbox" id="furiToggle" checked>
+      <span class="switch-track"><span class="switch-thumb"></span></span>
+      <span>Furigana</span>
+    </label>
+  </header>
+
+  <main>
+    <section id="lessons" class="panel"></section>
+    <section id="structure" class="panel"></section>
+    <section id="particles" class="panel"></section>
+    <section id="verbs" class="panel"></section>
+    <section id="adjectives" class="panel"></section>
+    <section id="patterns" class="panel"></section>
+    <section id="practice" class="panel"></section>
+  </main>
+
+  <footer class="footer">Colours mean the same thing on every page — a green block is always the object, a blue block is always the topic.</footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/verbs.js"></script>
+  <script src="js/lessons.js"></script>
+  <script src="js/drills.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
