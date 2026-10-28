@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Bunpō · Request access</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f4ef; --surface: #ffffff; --surface-2: #f0ede6; --text: #1d2025; --muted: #6a6f78;
+      --border: #e2ded4; --accent: #c8402f; --good: #1a9a52; --bad: #d63a3a;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 30px rgba(0, 0, 0, .07);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #131519; --surface: #1b1e23; --surface-2: #252930; --text: #e9e7e2; --muted: #9ba1aa;
+        --border: #30353d; --accent: #ff7a66; --good: #3ccf7f; --bad: #ff6b6b;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .3);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+      background: var(--bg); color: var(--text);
+      font: 16px/1.55 Inter, "Noto Sans JP", system-ui, sans-serif;
+    }
+    [lang="ja"] { font-family: "Noto Sans JP", Inter, sans-serif; }
+    .card {
+      width: 100%; max-width: 440px; padding: 32px 28px; border-radius: 20px;
+      background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+      text-align: center;
+    }
+    .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; margin-bottom: 26px; }
+    .brand-mark {
+      width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+      background: var(--accent); color: var(--surface); font-size: 1.1rem;
+    }
+    .seal {
+      width: 92px; height: 92px; margin: 0 auto 18px; border-radius: 50%;
+      display: grid; place-items: center; transform: rotate(-8deg);
+      border: 3px solid var(--accent); color: var(--accent);
+      box-shadow: inset 0 0 0 4px var(--surface), inset 0 0 0 6px var(--accent);
+      font-size: 1.9rem; font-weight: 700;
+    }
+    .seal.wait { border-color: var(--muted); color: var(--muted); box-shadow: none; animation: breathe 2.4s ease-in-out infinite; }
+    .seal.no { border-color: var(--bad); color: var(--bad); box-shadow: none; }
+    @keyframes breathe { 50% { transform: rotate(-8deg) scale(1.06); } }
+    h1 { font-size: 1.45rem; margin: 0 0 6px; }
+    p { margin: 0 0 14px; color: var(--muted); }
+    form { text-align: left; margin-top: 22px; display: grid; gap: 14px; }
+    label { display: grid; gap: 6px; font-weight: 600; font-size: .9rem; }
+    label small { color: var(--muted); font-weight: 400; }
+    input, textarea {
+      font: inherit; color: var(--text); background: var(--surface-2);
+      border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; width: 100%;
+    }
+    textarea { resize: vertical; min-height: 76px; }
+    input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    button {
+      font: inherit; font-weight: 700; padding: 12px; border-radius: 999px; border: 0; cursor: pointer;
+      background: var(--text); color: var(--surface);
+    }
+    button:disabled { opacity: .6; cursor: default; }
+    .error { color: var(--bad); font-size: .9rem; min-height: 1.2em; margin: 0; }
+    .code {
+      display: inline-block; margin: 6px 0 16px; padding: 6px 14px; border-radius: 10px;
+      background: var(--surface-2); font-weight: 700; letter-spacing: .12em; font-variant-numeric: tabular-nums;
+    }
+    .live { display: inline-flex; align-items: center; gap: 8px; font-size: .88rem; color: var(--muted); }
+    .live::before {
+      content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--good);
+      animation: blink 1.6s ease-in-out infinite;
+    }
+    @keyframes blink { 50% { opacity: .25; } }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand"><span class="brand-mark" lang="ja">文</span> Bunpō</div>
+
+    <section id="ask" hidden>
+      <div class="seal" lang="ja" aria-hidden="true">鍵</div>
+      <h1>This site is private</h1>
+      <p>Bunpō is a visual Japanese grammar course shared with invited learners. Send a request and the owner can let you in.</p>
+      <form id="form">
+        <label>Your name
+          <input name="name" maxlength="40" autocomplete="name" required>
+        </label>
+        <label>Message <small>(optional — who you are, how you found it)</small>
+          <textarea name="message" maxlength="300"></textarea>
+        </label>
+        <p class="error" id="error" role="alert"></p>
+        <button type="submit">Request access</button>
+      </form>
+    </section>
+
+    <section id="wait" hidden>
+      <div class="seal wait" lang="ja" aria-hidden="true">待</div>
+      <h1>Request sent</h1>
+      <p>Your request code is</p>
+      <div class="code" id="code">——</div>
+      <p>The owner approves requests on their own computer. Keep this page open — it opens the site by itself as soon as you're let in, or come back later in this browser.</p>
+      <span class="live">Waiting for approval</span>
+    </section>
+
+    <section id="no" hidden>
+      <div class="seal no" lang="ja" aria-hidden="true">否</div>
+      <h1>Request declined</h1>
+      <p>The owner hasn't granted access to this browser. If you think that's a mistake, contact them directly.</p>
+    </section>
+  </main>
+
+  <script>
+    const show = (id) => ["ask", "wait", "no"].forEach((s) => (document.getElementById(s).hidden = s !== id));
+    let timer = null;
+
+    function render(state) {
+      if (state.status === "approved") return location.reload();
+      if (state.code) document.getElementById("code").textContent = state.code;
+      if (state.status === "pending") {
+        show("wait");
+        if (!timer) timer = setInterval(check, 8000);
+      } else {
+        clearInterval(timer);
+        timer = null;
+        show(state.status === "denied" ? "no" : "ask");
+      }
+    }
+
+    async function check() {
+      try {
+        const r = await fetch("/access/status", { cache: "no-store" });
+        render(await r.json());
+      } catch { /* offline for a moment — try again on the next tick */ }
+    }
+
+    document.getElementById("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const button = form.querySelector("button");
+      const error = document.getElementById("error");
+      error.textContent = "";
+      button.disabled = true;
+      try {
+        const r = await fetch("/access/request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: form.elements.name.value, message: form.elements.message.value }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Something went wrong.");
+        render(data);
+      } catch (err) {
+        error.textContent = err.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    check();
+  </script>
+</body>
+</html>

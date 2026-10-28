@@ -1,0 +1,11 @@
+{
+  "name": "jp-helper",
+  "private": true,
+  "description": "Visual Japanese grammar site, locked behind access requests you approve locally.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

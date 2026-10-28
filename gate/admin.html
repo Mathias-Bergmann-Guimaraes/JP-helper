@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Bunpō · Access requests</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f4ef; --surface: #ffffff; --surface-2: #f0ede6; --text: #1d2025; --muted: #6a6f78;
+      --border: #e2ded4; --accent: #c8402f; --good: #1a9a52; --bad: #d63a3a; --wait: #d98200;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 20px rgba(0, 0, 0, .05);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #131519; --surface: #1b1e23; --surface-2: #252930; --text: #e9e7e2; --muted: #9ba1aa;
+        --border: #30353d; --accent: #ff7a66; --good: #3ccf7f; --bad: #ff6b6b; --wait: #ffad33;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 Inter, "Noto Sans JP", system-ui, sans-serif; }
+    main { max-width: 820px; margin: 0 auto; padding: 28px 16px 60px; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .brand-mark {
+      width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; flex: none;
+      background: var(--accent); color: var(--surface); font: 700 1.1rem "Noto Sans JP", sans-serif;
+    }
+    h1 { font-size: 1.4rem; margin: 0; }
+    .lead { color: var(--muted); margin: 0 0 24px; }
+    h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 28px 0 10px; display: flex; gap: 8px; align-items: center; }
+    .count { background: var(--surface-2); color: var(--text); border-radius: 999px; padding: 1px 8px; font-size: .75rem; }
+    .list { display: grid; gap: 10px; }
+    .req {
+      display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: start;
+      background: var(--surface); border: 1px solid var(--border); border-left: 5px solid var(--c);
+      border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow);
+    }
+    .req.pending { --c: var(--wait); }
+    .req.approved { --c: var(--good); }
+    .req.denied { --c: var(--bad); }
+    .who { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+    .code { font-weight: 700; letter-spacing: .1em; background: var(--surface-2); border-radius: 6px; padding: 1px 7px; font-size: .8rem; margin-left: 6px; }
+    .msg { grid-column: 1 / -1; margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .meta { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    button {
+      font: inherit; font-weight: 600; font-size: .85rem; padding: 6px 14px; border-radius: 999px; cursor: pointer;
+      border: 1.5px solid var(--border); background: var(--surface-2); color: var(--text);
+    }
+    button.approve { background: var(--good); border-color: var(--good); color: var(--surface); }
+    button.deny { border-color: var(--bad); color: var(--bad); background: none; }
+    button.quiet { background: none; color: var(--muted); }
+    .empty { color: var(--muted); padding: 14px 16px; border: 1.5px dashed var(--border); border-radius: 14px; }
+    @media (max-width: 560px) { .req { grid-template-columns: 1fr; } .actions { justify-content: flex-start; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><span class="brand-mark" lang="ja">文</span><h1>Access requests</h1></header>
+    <p class="lead">Only reachable from this computer. Approving a request unlocks the site for that one browser.</p>
+
+    <h2>Waiting <span class="count" id="nPending">0</span></h2>
+    <div class="list" id="pending"></div>
+    <h2>Has access <span class="count" id="nApproved">0</span></h2>
+    <div class="list" id="approved"></div>
+    <h2>Declined <span class="count" id="nDenied">0</span></h2>
+    <div class="list" id="denied"></div>
+  </main>
+
+  <script>
+    // Visitor text (name, message) is only ever inserted with textContent, never as HTML.
+    const el = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    };
+    const when = (iso) => (iso ? new Date(iso).toLocaleString() : "");
+
+    const ACTIONS = {
+      pending: [["approve", "Approve", "approve"], ["deny", "Decline", "deny"]],
+      approved: [["deny", "Revoke", "deny"]],
+      denied: [["approve", "Approve", "approve"], ["delete", "Remove", "quiet"]],
+    };
+
+    function card(r) {
+      const c = el("div", `req ${r.status}`);
+      const who = el("div", "who", r.name);
+      who.append(el("span", "code", r.code));
+      const actions = el("div", "actions");
+      for (const [action, label, cls] of ACTIONS[r.status]) {
+        const b = el("button", cls, label);
+        b.onclick = () => decide(r.id, action, b);
+        actions.append(b);
+      }
+      c.append(who, actions);
+      if (r.message) c.append(el("p", "msg", r.message));
+      const bits = [`Requested ${when(r.requestedAt)}`, r.ip];
+      if (r.decidedAt) bits.push(`${r.status === "approved" ? "Approved" : "Declined"} ${when(r.decidedAt)}`);
+      if (r.lastSeen) bits.push(`last visit ${when(r.lastSeen)}`);
+      if (r.ua) bits.push(r.ua);
+      c.append(el("div", "meta", bits.filter(Boolean).join(" · ")));
+      return c;
+    }
+
+    async function load() {
+      const r = await fetch("/api/requests", { cache: "no-store" });
+      const list = await r.json();
+      for (const status of ["pending", "approved", "denied"]) {
+        const items = list.filter((x) => x.status === status);
+        const box = document.getElementById(status);
+        box.replaceChildren(...(items.length ? items.map(card) : [el("div", "empty", status === "pending" ? "No requests waiting." : "None yet.")]));
+        document.getElementById("n" + status[0].toUpperCase() + status.slice(1)).textContent = items.length;
+      }
+      const waiting = list.filter((x) => x.status === "pending").length;
+      document.title = (waiting ? `(${waiting}) ` : "") + "Bunpō · Access requests";
+    }
+
+    async function decide(id, action, button) {
+      button.disabled = true;
+      await fetch("/api/decide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin": "1" },
+        body: JSON.stringify({ id, action }),
+      });
+      load();
+    }
+
+    load();
+    setInterval(load, 5000);
+  </script>
+</body>
+</html>
