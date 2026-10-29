@@ -227,7 +227,7 @@ function gapQ(d) {
     kind: "Fill the gap",
     link: d.point.link,
     prompt: `<div class="q-sentence" lang="ja">${ruby(d.before)}<span class="blank">？</span>${ruby(d.after)}</div>
-      <div class="q-en">${d.en}</div>`,
+      ${hintEn(d.en)}`,
     options: shuffle([d.answer, ...d.wrong]).map((o) => ({ html: ruby(o), correct: o === d.answer })),
     reveal: (box) => {
       const b = $(".blank", box);
@@ -279,7 +279,7 @@ function formQ(link) {
   return {
     ...q,
     kind: link.tab === "verbs" ? "Build the verb form" : "Build the pattern",
-    review: `<span class="lt-form">${q.prompt.replace(/<div class="q-en">.*?<\/div>/s, "")}</span>
+    review: `<span class="lt-form">${q.prompt.replace(/<details class="q-hint">.*?<\/details>/s, "")}</span>
       <span lang="ja">→ <b>${right.html}</b></span>`,
   };
 }
@@ -303,6 +303,7 @@ function askIn(box, q, done) {
       else if (j === i) x.classList.add("wrong");
     });
     q.reveal(box);
+    openHints(box);
     $(".q-feedback", box).innerHTML =
       `<div class="verdict ${ok ? "ok" : "bad"}">${ok ? "Correct!" : "Not quite."}</div>${q.feedback(q.options[i])}`;
     const see = $("[data-see]", box);

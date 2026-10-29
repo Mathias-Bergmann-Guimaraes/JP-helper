@@ -916,6 +916,10 @@ function nextQuestion() {
   $$("#qOpts .q-opt").forEach((b) => (b.onclick = () => answer(+b.dataset.i)));
 }
 
+// A question's English stays folded behind a button until asked for, or until the question is answered.
+const hintEn = (text) => `<details class="q-hint"><summary>Show translation</summary><div class="q-en">${text}</div></details>`;
+const openHints = (box) => $$(".q-hint", box).forEach((d) => (d.open = true));
+
 function makeParticleQ() {
   // Deal from a shuffled deck so every question comes up once before any repeats.
   if (!quiz.deck || !quiz.deck.length) {
@@ -926,7 +930,7 @@ function makeParticleQ() {
   quiz.last = q;
   const blank = `<span class="blank" id="qBlank">？</span>`;
   return {
-    prompt: `<div class="q-sentence" lang="ja">${ruby(q.s).replace("{_}", blank)}</div><div class="q-en">${q.en}</div>`,
+    prompt: `<div class="q-sentence" lang="ja">${ruby(q.s).replace("{_}", blank)}</div>${hintEn(q.en)}`,
     options: shuffle(q.opts.slice()).map((o) => ({ html: o, value: o, correct: o === q.a })),
     feedback: () => {
       const r = ROLES[PARTICLE_ROLE[q.a]];
@@ -964,7 +968,7 @@ function makeVerbQ(formId) {
   const g = GROUPS[v.group];
   return {
     prompt: `<div class="q-sentence" lang="ja">${ruby(v.w)} <span class="arrow">→</span> <span class="q-form">${f.label}</span></div>
-      <div class="q-en">“${f.meaning.replace(/\{v\}/g, v.en).replace(/ \(.*\)$/, "")}”</div>`,
+      ${hintEn(`“${f.meaning.replace(/\{v\}/g, v.en).replace(/ \(.*\)$/, "")}”`)}`,
     options: shuffle([c.result, ...wrong]).map((o) => ({ html: ruby(o), value: o, correct: o === c.result })),
     feedback: () => `<div class="fb-verb" style="--gc:${g.color}">
         <div class="conj-word" lang="ja">${partsHTML(c.parts)}</div>
@@ -1019,7 +1023,7 @@ function makePatternQ(patId) {
 
   return {
     prompt: `<div class="q-sentence" lang="ja">${ruby(v.w)} <span class="arrow">+</span> <span class="q-pat" style="--pc:${p.color}">${p.title}</span></div>
-      <div class="q-en">“${p.en.replace("{v}", v.en).replace("{ing}", v.ing)}”</div>`,
+      ${hintEn(`“${p.en.replace("{v}", v.en).replace("{ing}", v.ing)}”`)}`,
     options: shuffle([{ text: correct }, ...wrong]).map((o) => ({
       html: ruby(o.text), value: o.text, correct: o.text === correct, why: o.why,
     })),
@@ -1055,6 +1059,7 @@ function answer(i) {
     else if (j === i) b.classList.add("wrong");
   });
   q.reveal();
+  openHints($("#qPrompt"));
   $("#qFeedback").innerHTML = `<div class="verdict ${ok ? "ok" : "bad"}">${ok ? "Correct!" : "Not quite."}</div>${q.feedback(q.options[i])}`;
   $("#qScore").textContent = `${quiz.score} / ${quiz.total}`;
   $("#qStreak").textContent = quiz.streak;

@@ -1024,6 +1024,11 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .q-sentence .arrow { color: var(--muted); }
 .q-form { font-family: var(--ui); font-weight: 700; font-size: 1.2rem; padding: 4px 12px; border-radius: 8px; background: var(--surface-2); vertical-align: middle; }
 .q-en { color: var(--muted); }
+.q-hint { margin-top: 4px; }
+.q-hint summary { display: inline-block; list-style: none; cursor: pointer; font-size: .8rem; font-weight: 600; color: var(--muted); padding: 4px 14px; border: 1px solid var(--border); border-radius: 999px; }
+.q-hint summary::-webkit-details-marker { display: none; }
+.q-hint summary:hover { color: var(--text); background: var(--surface-2); }
+.q-hint[open] summary { display: none; }
 .q-pat { color: var(--pc); font-weight: 700; padding: 0 10px; border-radius: 10px; border: 2px solid var(--pc); background: color-mix(in srgb, var(--pc) 12%, var(--surface)); }
 .fb-pat .conj-word { color: var(--text); font-size: 1.8rem; margin-bottom: 6px; flex-wrap: wrap; }
 .fb-pat .vp.pat { white-space: nowrap; }
