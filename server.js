@@ -29,6 +29,7 @@ const isOpen = (file) => {
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 };
 const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : path.join(__dirname, "data", "access.json");
+const PROGRESS_FILE = path.join(path.dirname(DATA_FILE), "progress.json");
 
 const COOKIE = "jpg_access";
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
@@ -65,10 +66,7 @@ const { requests, accounts, sessions, invites } = db;
 const MAX_SESSIONS_PER_REQUEST = 20;
 
 function loadDb() {
-  let raw = {};
-  try {
-    raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  } catch { /* no file yet */ }
+  const raw = loadJson(DATA_FILE);
   if (raw.requests) {
     return { requests: raw.requests, accounts: raw.accounts || {}, sessions: raw.sessions || {}, invites: raw.invites || {} };
   }
@@ -78,11 +76,26 @@ function loadDb() {
   return { requests: raw, accounts: {}, sessions, invites: {} };
 }
 
-function saveDb() {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  const tmp = DATA_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DATA_FILE);
+const saveDb = () => saveJson(DATA_FILE, db);
+
+// data/progress.json holds each member's lesson progress, so it follows them to every browser:
+//   { [request id]: { [key]: value, updatedAt } }   (the keys are in PROGRESS_MERGE below)
+// Kept apart from access.json, which then isn't rewritten every time someone opens a lesson.
+const progress = loadJson(PROGRESS_FILE);
+
+function loadJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveJson(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = file + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.renameSync(tmp, file);
 }
 
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
@@ -230,14 +243,14 @@ function sendFile(res, dir, urlPath, status = 200) {
   });
 }
 
-function readJson(req) {
+function readJson(req, max = MAX_BODY) {
   return new Promise((resolve, reject) => {
     if (!/^application\/json\b/i.test(req.headers["content-type"] || "")) return reject(new Error("json only"));
     let size = 0;
     const chunks = [];
     req.on("data", (c) => {
       size += c.length;
-      if (size > MAX_BODY) {
+      if (size > max) {
         reject(new Error("too large"));
         req.destroy();
       } else chunks.push(c);
@@ -271,9 +284,9 @@ const note = (key) => hits.get(key).push(Date.now());
 const LOGIN_FAILS = 10; // per IP and per account, every 15 minutes
 const LOGIN_WINDOW = 15 * 60 * 1000;
 
-async function body(req, res) {
+async function body(req, res, max) {
   try {
-    return await readJson(req);
+    return await readJson(req, max);
   } catch {
     sendJson(res, 400, { error: "Could not read the request." });
     return null;
@@ -410,6 +423,63 @@ function touch(id) {
   }
 }
 
+/* ---------------------------------------------------------------- Lesson progress */
+
+// The keys of the site's localStorage that are saved per account, and how a browser's value
+// merges with the saved one:
+//   scores — { [name]: number }: each score only ever goes up, so a phone that was offline can't
+//            undo a lesson finished on the laptop.
+//   max    — a number that only goes up.
+//   latest — anything (the last lesson opened, XP): the latest change wins.
+// The page gets this list too (in progress.js), so adding a key here is all it takes.
+const PROGRESS_MERGE = { lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest" };
+const MAX_PROGRESS_BODY = 32 * 1024;
+const MAX_LATEST = 2 * 1024;
+const MAX_SCORES = 1000;
+const SCORE_NAME_RE = /^[\w.-]{1,20}$/;
+const isScore = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1e9;
+
+// `owner` lets a browser tell whose progress it has saved locally, so a second account on the
+// same browser never inherits (or uploads) someone else's.
+const progressOf = (id) => ({ owner: shortCode(id), progress: progress[id] || {}, merge: PROGRESS_MERGE });
+
+// Sent as a script before the site's own, so the progress is there before any of them reads it.
+// Cookies are SameSite=Lax, so another site can't load this with the member's session.
+function sendProgressScript(res, id) {
+  const json = JSON.stringify(progressOf(id)).replace(/</g, "\\x3c"); // no "</script>" trickery
+  res.writeHead(200, baseHeaders({ "Content-Type": TYPES[".js"], "Cache-Control": "no-store" }));
+  res.end(`window.SERVER_PROGRESS = ${json};\n`);
+}
+
+// Returns the merged value, or undefined if `v` isn't valid for this kind of key.
+function mergeProgress(how, saved, v) {
+  if (how === "max") return isScore(v) ? Math.max(saved ?? 0, v) : undefined;
+  if (how === "latest") return v !== null && JSON.stringify(v).length <= MAX_LATEST ? v : undefined;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const out = { ...saved };
+  for (const [name, score] of Object.entries(v)) {
+    if (!SCORE_NAME_RE.test(name) || !isScore(score)) return undefined;
+    out[name] = Math.max(out[name] ?? -1, score);
+  }
+  return Object.keys(out).length <= MAX_SCORES ? out : undefined;
+}
+
+async function handleProgress(req, res, me) {
+  const b = await body(req, res, MAX_PROGRESS_BODY);
+  if (!b) return;
+  const p = { ...progress[me.id] };
+  for (const [k, v] of Object.entries(b)) {
+    const how = PROGRESS_MERGE[k];
+    const merged = how && mergeProgress(how, p[k], v);
+    if (merged === undefined) return sendJson(res, 400, { error: `Bad progress: ${cleanText(k, 30)}` });
+    p[k] = merged;
+  }
+  p.updatedAt = new Date().toISOString();
+  progress[me.id] = p;
+  saveJson(PROGRESS_FILE, progress);
+  sendJson(res, 200, progressOf(me.id));
+}
+
 const ACCESS_ROUTES = {
   "/access/request": handleRequest,
   "/access/signup": handleSignup,
@@ -427,11 +497,18 @@ const publicServer = http.createServer(async (req, res) => {
     if (req.method !== "POST") return sendText(res, 405, "Method not allowed");
     return ACCESS_ROUTES[pathname](req, res, me);
   }
+  const member = me && requests[me.id].status === "approved";
+  if (pathname === "/progress.js" && member) return sendProgressScript(res, me.id);
+  if (pathname === "/progress") {
+    if (!member) return sendJson(res, 403, { error: "Access required" });
+    if (req.method !== "POST") return sendText(res, 405, "Method not allowed");
+    return handleProgress(req, res, me);
+  }
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Method not allowed");
 
   // Members get the site. Everyone else gets the login page at the site's address, the fonts it
   // uses, and nothing more.
-  if (me && requests[me.id].status === "approved") {
+  if (member) {
     if (pathname === "/") touch(me.id);
     return sendFile(res, PUBLIC_DIR, pathname);
   }
@@ -530,6 +607,10 @@ const ADMIN_ACTIONS = {
       delete requests[body.id];
       if (r.account) delete accounts[r.account];
       for (const [sid, s] of Object.entries(sessions)) if (s.request === body.id) delete sessions[sid];
+      if (progress[body.id]) {
+        delete progress[body.id];
+        saveJson(PROGRESS_FILE, progress);
+      }
     } else if (body.action === "approve" || body.action === "deny") {
       r.status = body.action === "approve" ? "approved" : "denied";
       r.decidedAt = new Date().toISOString();

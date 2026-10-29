@@ -12,14 +12,89 @@ const shuffle = (a) => {
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 // localStorage can be unavailable (private mode, file:// in some browsers) — never let it break the page.
+// Saving a progress key also saves it for the signed-in account (see Progress below).
 const store = {
   get(k, d) {
     try { const v = localStorage.getItem("jpg." + k); return v === null ? d : JSON.parse(v); } catch { return d; }
   },
   set(k, v) {
+    const changed = progress.sync && progress.merge[k] && JSON.stringify(v) !== JSON.stringify(store.get(k));
     try { localStorage.setItem("jpg." + k, JSON.stringify(v)); } catch { /* ignore */ }
+    if (changed) queueProgress({ [k]: v });
+  },
+  del(k) {
+    try { localStorage.removeItem("jpg." + k); } catch { /* ignore */ }
   },
 };
+
+/* ---------------------------------------------------------------- Progress */
+
+// Lesson progress is saved per account on the server, so it follows a member to every browser.
+// server.js sends it in progress.js, loaded before this file:
+//   window.SERVER_PROGRESS = { owner, progress: { [key]: value }, merge: { [key]: how } }
+// and it is copied into localStorage here, before any other script reads it. localStorage stays
+// marked with whose progress it holds ("progressOwner"), so a second account on this browser
+// starts clean. Without server.js (the page opened as a file) progress stays in this browser.
+const progress = { sync: false, merge: {}, pending: null, sending: false };
+
+function queueProgress(patch) {
+  progress.pending = Object.assign(progress.pending || {}, patch);
+  setTimeout(sendProgress, 300); // gathers quick bursts of saves into one request
+}
+
+async function sendProgress() {
+  if (progress.sending || !progress.pending) return;
+  const patch = progress.pending;
+  progress.pending = null;
+  progress.sending = true;
+  try {
+    await post("/progress", patch);
+  } catch { /* still saved in this browser; scores are sent again on the next visit */ }
+  progress.sending = false;
+  sendProgress();
+}
+
+// Leaving the page before the short wait is over: send what's left anyway.
+addEventListener("pagehide", () => {
+  if (!progress.pending) return;
+  fetch("/progress", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(progress.pending) });
+  progress.pending = null;
+});
+
+(function applyServerProgress() {
+  const s = window.SERVER_PROGRESS;
+  if (!s) return;
+  // Progress saved here by this account, or from before logins existed, is merged in and the
+  // server gets what it is missing: the higher score wins, and the last lesson opened (and other
+  // "latest" values) only come from here if the server has none yet. Anyone else's is replaced.
+  const mine = [null, s.owner].includes(store.get("progressOwner", null));
+  const upload = {};
+  for (const [k, how] of Object.entries(s.merge)) {
+    const there = s.progress[k];
+    const here = mine ? store.get(k) : undefined;
+    let v = there;
+    if (here !== undefined && how === "scores") {
+      v = { ...there };
+      for (const [n, score] of Object.entries(here)) {
+        if (score > (v[n] ?? -1)) { v[n] = score; upload[k] = here; }
+      }
+    } else if (here !== undefined && how === "max") {
+      if (here > (there ?? 0)) { v = here; upload[k] = here; }
+    } else if (here !== undefined && there === undefined) {
+      v = here;
+      upload[k] = here;
+    }
+    v === undefined ? store.del(k) : store.set(k, v);
+  }
+  store.set("progressOwner", s.owner);
+  Object.assign(progress, { sync: true, merge: s.merge });
+  if (Object.keys(upload).length) queueProgress(upload);
+})();
+
+// On log out, so the next person on this browser doesn't see this account's progress.
+function clearProgress() {
+  for (const k of [...Object.keys(progress.merge), "progressOwner"]) store.del(k);
+}
 
 const partsHTML = (parts) => parts.map((p) => `<span class="vp ${p.cls}">${ruby(p.m)}</span>`).join("");
 
@@ -79,6 +154,7 @@ async function logOut() {
   try {
     await post("/access/logout", {});
   } finally {
+    clearProgress();
     location.hash = "";
     location.reload();
   }

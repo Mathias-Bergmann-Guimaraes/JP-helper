@@ -35,6 +35,11 @@ Without access, the server only sends `gate/login.html` (at `/`) and the files i
 data goes to Google. Accounts, invites and sessions are saved in `data/access.json`, which is not
 committed — older copies of that file are upgraded automatically.
 
+Lesson progress (test scores, stars, XP, best streak, the last lesson opened) is saved per
+account in `data/progress.json`, so it follows a member to every browser they log in on.
+Progress made in a browser before logins existed moves into the first account that logs in
+there. **Remove** deletes it along with the login.
+
 Settings via environment variables: `PORT` (default 5173), `HOST` (default 0.0.0.0),
 `ADMIN_PORT` (default 3004) and `DATA_FILE` (default `data/access.json`).
 
