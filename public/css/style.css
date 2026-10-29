@@ -83,6 +83,9 @@ button { font: inherit; color: inherit; }
 .muted { color: var(--muted); }
 .small { font-size: .85rem; }
 .accent { color: var(--accent); }
+/* Many highlights use the page colour as their text colour, which the browser's
+   own selection colour swallows. A fixed selection style keeps every word readable. */
+::selection { background: color-mix(in srgb, var(--c-topic) 40%, var(--surface)); color: var(--text); }
 
 ruby { ruby-position: over; }
 rt { font-size: .5em; color: var(--muted); font-weight: 400; letter-spacing: 0; }
