@@ -2,7 +2,8 @@
 
 A visual Japanese grammar site: colour-coded sentence blocks, particles, verb conjugation,
 adjectives, verb patterns and a practice page — plus a 50-lesson course with practice
-sentences and a test for every lesson.
+sentences, a 5-question check (worth up to three stars) for every grammar point and a test for
+every lesson. Right answers earn XP towards levels and a daily streak.
 
 The whole site is **private**. Visitors without a login only see a login page. From there they
 can pick a username and password and send an access request, which you approve by hand — or

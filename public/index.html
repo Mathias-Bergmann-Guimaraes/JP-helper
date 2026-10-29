@@ -7,6 +7,16 @@
   <meta name="robots" content="noindex">
   <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    // Pick the colour theme before anything is drawn, so the page never flashes the wrong one.
+    // app.js keeps it up to date (theme button, device switching between light and dark).
+    (function () {
+      var t;
+      try { t = JSON.parse(localStorage.getItem("jpg.theme")); } catch (e) { /* ignore */ }
+      if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
 </head>
 <body>
   <header class="topbar">
@@ -29,6 +39,7 @@
       <span class="switch-track"><span class="switch-thumb"></span></span>
       <span>Furigana</span>
     </label>
+    <button class="account-btn theme-btn" id="themeBtn" type="button"></button>
   </header>
 
   <main>
@@ -50,6 +61,7 @@
   <script src="js/app.js"></script>
   <script src="js/lessons.js"></script>
   <script src="js/drills.js"></script>
+  <script src="js/game.js"></script>
   <script src="js/lesson-prompts.js"></script>
   <script src="js/lesson-page.js"></script>
 </body>

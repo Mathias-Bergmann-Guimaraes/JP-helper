@@ -1063,9 +1063,36 @@ function answer(i) {
   $("#qNext").focus({ preventScroll: true });
 }
 
+/* ---------------------------------------------------------------- Theme */
+
+// "auto" follows the device. The button cycles auto → light → dark.
+const THEMES = { auto: ["◐", "Auto"], light: ["☀", "Light"], dark: ["☾", "Dark"] };
+const darkMq = matchMedia("(prefers-color-scheme: dark)");
+
+function applyTheme() {
+  let t = store.get("theme", "auto");
+  if (!THEMES[t]) t = "auto";
+  document.documentElement.dataset.theme = t === "auto" ? (darkMq.matches ? "dark" : "light") : t;
+  const b = $("#themeBtn");
+  b.innerHTML = `<span aria-hidden="true">${THEMES[t][0]}</span><span class="theme-word"> ${THEMES[t][1]}</span>`;
+  b.title = "Colour theme — click to change";
+  b.setAttribute("aria-label", `Colour theme: ${t}. Click to change.`);
+}
+
+function setupTheme() {
+  applyTheme();
+  darkMq.addEventListener("change", applyTheme);
+  $("#themeBtn").onclick = () => {
+    const keys = Object.keys(THEMES);
+    store.set("theme", keys[(keys.indexOf(store.get("theme", "auto")) + 1) % keys.length]);
+    applyTheme();
+  };
+}
+
 /* ---------------------------------------------------------------- Init */
 
 function init() {
+  setupTheme();
   const furi = $("#furiToggle");
   furi.checked = store.get("furigana", true);
   document.body.classList.toggle("no-furi", !furi.checked);

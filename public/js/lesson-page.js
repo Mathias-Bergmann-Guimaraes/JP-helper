@@ -4,10 +4,18 @@
 /* ---------------------------------------------------------------- Lessons (Minna no Nihongo order) */
 
 // tests: best test score per lesson. A lesson counts as finished once its test is passed.
-const lessonState = { n: store.get("lesson", 1), tests: store.get("lessonTests", {}) };
+// stars: best result (0–3) of each grammar point's 5-question check, keyed "lesson.point".
+const lessonState = { n: store.get("lesson", 1), tests: store.get("lessonTests", {}), stars: store.get("pointStars", {}) };
 const TEST_LEN = 10;
 const PASS_MARK = 8;
+const CHECK_LEN = 5;
 const lessonPassed = (n) => (lessonState.tests[n] || 0) >= PASS_MARK;
+const pointStars = (n, i) => lessonState.stars[`${n}.${i}`] || 0;
+const lessonStars = (l) => l.points.reduce((s, _, i) => s + pointStars(l.n, i), 0);
+
+// XP per right answer, and bonuses for finishing things.
+const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10 };
+const COMBO_AT = 5;
 
 function renderLessons() {
   const node = (l) => `<button class="lnode" data-l="${l.n}"><span class="lnum">${l.n}</span><span class="ltitle">${l.title}</span></button>`;
@@ -15,12 +23,9 @@ function renderLessons() {
     <div class="card hero">
       <h1>Grammar in <span class="accent">Minna no Nihongo</span> order</h1>
       <p>All 50 lessons of <span lang="ja">みんなの日本語 初級 Ⅰ・Ⅱ</span>, one after another. Each grammar point comes with an example,
-      and <b>See it →</b> jumps to the picture that explains it. Practise at the bottom of each lesson,
-      then pass the lesson test to finish it.</p>
-      <div class="progress">
-        <div class="progress-bar"><span id="lProgressBar"></span></div>
-        <span id="lProgressText" class="small muted"></span>
-      </div>
+      and <b>See it →</b> jumps to the picture that explains it. <b>Check</b> each point with 5 quick questions to earn up to
+      three stars, then pass the lesson test to finish the lesson. Every right answer earns XP.</p>
+      ${hudHTML()}
     </div>
     <div class="lessons-layout">
       <nav class="card lpath" aria-label="Lessons">
@@ -32,6 +37,7 @@ function renderLessons() {
       <div id="lessonDetail"></div>
     </div>`;
   $$("#lessons [data-l]").forEach((b) => (b.onclick = () => showLesson(+b.dataset.l, true)));
+  renderHud();
   showLesson(lessonState.n);
 }
 
@@ -78,15 +84,19 @@ function showLesson(n, scroll) {
     </div>
     <div class="lpoints">
       ${l.points.map((p, i) => `
-        <div class="lpoint" style="--c:${ROLES[p.role].color}">
+        <div class="lpoint" id="lp-${i}" style="--c:${ROLES[p.role].color}">
           <div class="lp-num">${i + 1}</div>
           <div>
             <div class="lp-g" lang="ja">${p.g}</div>
             <div class="lp-m">${p.m}</div>
             <div class="lp-ex" lang="ja">${rich(p.ex)}</div>
             <div class="lp-en">${p.en}</div>
-            ${p.link ? `<button class="lp-link" data-p="${i}">See it → ${linkLabel(p.link)}</button>` : ""}
+            <div class="lp-actions">
+              <button class="lp-check-btn" data-check="${i}"></button>
+              ${p.link ? `<button class="lp-link" data-p="${i}">See it → ${linkLabel(p.link)}</button>` : ""}
+            </div>
           </div>
+          <div class="lp-check" hidden></div>
         </div>`).join("")}
     </div>
     <div class="lsection">
@@ -102,6 +112,7 @@ function showLesson(n, scroll) {
       <div class="scorebar">
         <span>Score <b id="lpScore">0 / 0</b></span>
         <span>Streak <b id="lpStreak">0</b></span>
+        <span class="combo" id="lpCombo" hidden>🔥 Combo · double XP</span>
       </div>
       <div id="lpQ"></div>
       <div class="q-actions"><button class="btn primary" id="lpNext" hidden>Next question →</button></div>
@@ -117,7 +128,9 @@ function showLesson(n, scroll) {
     </div>`;
 
   $$("[data-p]", d).forEach((b) => (b.onclick = () => goTo(l.points[+b.dataset.p].link)));
+  $$("[data-check]", d).forEach((b) => (b.onclick = () => openCheck(l, +b.dataset.check)));
   $$("[data-go]", d).forEach((b) => (b.onclick = () => showLesson(+b.dataset.go, true)));
+  l.points.forEach((_, i) => drawPointStars(l, i));
   renderLessonStatus(l);
   renderAiPrompts(l);
   startLessonPractice(l);
@@ -131,12 +144,15 @@ function showLesson(n, scroll) {
 function updateLessonPath() {
   $$("#lessons [data-l]").forEach((b) => {
     const n = +b.dataset.l;
+    const l = LESSONS.find((x) => x.n === n);
     b.classList.toggle("active", n === lessonState.n);
     b.classList.toggle("done", lessonPassed(n));
+    // The ring around the number fills up with the lesson's stars.
+    $(".lnum", b).style.setProperty("--p", `${(lessonStars(l) / (l.points.length * 3)) * 100}%`);
   });
   const count = LESSONS.filter((l) => lessonPassed(l.n)).length;
   $("#lProgressBar").style.width = `${(count / LESSONS.length) * 100}%`;
-  $("#lProgressText").textContent = `${count} / ${LESSONS.length} lessons finished`;
+  $("#lProgressText").textContent = `${count} / ${LESSONS.length}`;
 
   // Keep the selected lesson visible inside the scrollable lesson list.
   const path = $(".lpath");
@@ -147,15 +163,34 @@ function updateLessonPath() {
   }
 }
 
+// Stars so far, plus one button for the most useful next step: the first point without stars,
+// then the test, then the first point that isn't at three stars yet.
 function renderLessonStatus(l) {
   const best = lessonState.tests[l.n];
-  $("#lessonStatus").innerHTML = lessonPassed(l.n)
-    ? `<span class="lstatus done">✓ Lesson finished · best test score ${best} / ${TEST_LEN}</span>`
-    : `<button class="lstatus" id="toTest">${best === undefined
-        ? `Finish with the lesson test ↓`
-        : `Best test score ${best} / ${TEST_LEN} · need ${PASS_MARK} to finish ↓`}</button>`;
-  const btn = $("#toTest");
-  if (btn) btn.onclick = () => scrollBelowBar($("#lTest").previousElementSibling);
+  const stars = lessonStars(l);
+  const max = l.points.length * 3;
+  const unchecked = l.points.findIndex((_, i) => !pointStars(l.n, i));
+  const notFull = l.points.findIndex((_, i) => pointStars(l.n, i) < 3);
+  let next;
+  if (unchecked >= 0) next = { point: unchecked, html: `Next: check point ${unchecked + 1} ↓` };
+  else if (!lessonPassed(l.n)) next = { html: best === undefined
+    ? `Next: the lesson test ↓`
+    : `Best test score ${best} / ${TEST_LEN} · need ${PASS_MARK} to finish ↓` };
+  else if (notFull >= 0) next = { point: notFull, html: `Go for 3 stars on point ${notFull + 1} ↓` };
+
+  $("#lessonStatus").innerHTML = `
+    <div class="lmastery">
+      <span class="lmastery-stars"><span class="star on">★</span> <b>${stars}</b> / ${max} stars</span>
+      <span class="lmastery-bar"><span style="width:${(stars / max) * 100}%"></span></span>
+    </div>
+    <div class="lstatus-row">
+      ${lessonPassed(l.n) ? `<span class="lstatus done">✓ Lesson finished · best test score ${best} / ${TEST_LEN}</span>` : ""}
+      ${next ? `<button class="lstatus" id="toNext">${next.html}</button>` : `<span class="lstatus done">★ Every point at three stars</span>`}
+    </div>`;
+  const btn = $("#toNext");
+  if (btn) btn.onclick = () => (next.point === undefined
+    ? scrollBelowBar($("#lTest").previousElementSibling)
+    : openCheck(l, next.point));
 }
 
 /* ------------------------------------------- Lesson practice & test */
@@ -171,8 +206,7 @@ const lessonDrills = (l) => DRILLS[l.n].map((d) => parseDrill(l, d));
 
 // Verb forms and patterns this lesson teaches — these get generated questions too.
 function lessonForms(l) {
-  const links = l.points.map((p) => p.link)
-    .filter((k) => k && ((k.tab === "verbs" && k.form !== "dict") || k.tab === "patterns"));
+  const links = l.points.map((p) => p.link).filter(isFormLink);
   return links.filter((k, i) => links.findIndex((x) => x.tab === k.tab && (x.form || x.id) === (k.form || k.id)) === i);
 }
 
@@ -222,6 +256,23 @@ function meaningQ(d, all) {
   };
 }
 
+// Show the English, pick the one full sentence that says it. The wrong ones swap in the wrong answers.
+function sentenceQ(d) {
+  const c = ROLES[d.point.role].color;
+  return {
+    kind: "Which sentence is right?",
+    link: d.point.link,
+    wide: true,
+    prompt: `<div class="q-en-big">“${d.en}”</div>`,
+    options: shuffle([d.answer, ...d.wrong]).map((o) => ({ html: ruby(d.before + o + d.after), correct: o === d.answer })),
+    reveal: () => {},
+    feedback: () => drillFeedback(d),
+    review: `<span lang="ja" style="--c:${c}">${drillSentence(d)}</span><span class="muted">${d.en}</span>`,
+  };
+}
+
+const isFormLink = (k) => k && ((k.tab === "verbs" && k.form !== "dict") || k.tab === "patterns");
+
 function formQ(link) {
   const q = link.tab === "verbs" ? makeVerbQ(link.form) : makePatternQ(link.id);
   const right = q.options.find((o) => o.correct);
@@ -233,15 +284,16 @@ function formQ(link) {
   };
 }
 
-// Draw one question into `box`. `done(ok)` runs once an answer is picked.
+// Draw one question into `box`. `done(ok, button)` runs once an answer is picked.
 function askIn(box, q, done) {
   box.innerHTML = `
     <div class="q-kind">${q.kind}</div>
     <div class="q-prompt">${q.prompt}</div>
     <div class="q-opts${q.wide ? " wide" : ""}">
-      ${q.options.map((o, i) => `<button class="q-opt" data-i="${i}" lang="${o.lang || "ja"}">${o.html}</button>`).join("")}
+      ${q.options.map((o, i) => `<button class="q-opt" data-i="${i}" lang="${o.lang || "ja"}"><span class="q-key" aria-hidden="true">${i + 1}</span>${o.html}</button>`).join("")}
     </div>
     <div class="q-feedback"></div>`;
+  keyQuiz = box;
   $$(".q-opt", box).forEach((b) => (b.onclick = () => {
     const i = +b.dataset.i;
     const ok = q.options[i].correct;
@@ -255,14 +307,20 @@ function askIn(box, q, done) {
       `<div class="verdict ${ok ? "ok" : "bad"}">${ok ? "Correct!" : "Not quite."}</div>${q.feedback(q.options[i])}`;
     const see = $("[data-see]", box);
     if (see) see.onclick = () => goTo(q.link);
-    done(ok);
+    done(ok, b);
   }));
 }
+
+const progressDots = (t) => t.qs.map((_, j) => {
+  const r = t.results[j];
+  return `<span class="lt-dot${r === undefined ? (j === t.i ? " now" : "") : r ? " ok" : " bad"}"></span>`;
+}).join("");
 
 const lessonPractice = { deck: [], score: 0, total: 0, streak: 0 };
 
 function startLessonPractice(l) {
   Object.assign(lessonPractice, { deck: [], score: 0, total: 0, streak: 0 });
+  $("#lpCombo").hidden = true;
   $("#lpNext").onclick = () => nextLessonPractice(l);
   nextLessonPractice(l);
 }
@@ -281,11 +339,16 @@ function nextLessonPractice(l) {
     q = r < 0.4 ? meaningQ(d, drills) : gapQ(d);
   }
   $("#lpNext").hidden = true;
-  askIn($("#lpQ"), q, (ok) => {
+  askIn($("#lpQ"), q, (ok, b) => {
     lp.total++;
     if (ok) { lp.score++; lp.streak++; } else lp.streak = 0;
+    // From COMBO_AT right in a row, every answer is worth double.
+    const combo = lp.streak >= COMBO_AT;
+    if (ok) addXP(combo ? XP.combo : XP.practice, b);
     $("#lpScore").textContent = `${lp.score} / ${lp.total}`;
     $("#lpStreak").textContent = lp.streak;
+    $("#lpCombo").hidden = !combo;
+    if (ok && lp.streak === COMBO_AT) toast(`<b>Combo!</b> ${COMBO_AT} right in a row — double XP until you miss one`);
     $("#lpNext").hidden = false;
     $("#lpNext").focus({ preventScroll: true });
   });
@@ -319,20 +382,17 @@ function showTestIntro(l) {
 
 function runTest(l, t) {
   const box = $("#lTest");
-  const dots = () => t.qs.map((_, j) => {
-    const r = t.results[j];
-    return `<span class="lt-dot${r === undefined ? (j === t.i ? " now" : "") : r ? " ok" : " bad"}"></span>`;
-  }).join("");
   box.innerHTML = `
     <div class="lt-top">
       <span class="small"><b>Question ${t.i + 1}</b> of ${t.qs.length}</span>
-      <div class="lt-dots">${dots()}</div>
+      <div class="lt-dots">${progressDots(t)}</div>
     </div>
     <div id="ltQ"></div>
     <div class="q-actions"><button class="btn primary" id="ltNext" hidden>${t.i + 1 < t.qs.length ? "Next question →" : "See my result →"}</button></div>`;
-  askIn($("#ltQ"), t.qs[t.i], (ok) => {
+  askIn($("#ltQ"), t.qs[t.i], (ok, b) => {
     t.results[t.i] = ok;
-    $(".lt-dots", box).innerHTML = dots();
+    if (ok) addXP(XP.test, b);
+    $(".lt-dots", box).innerHTML = progressDots(t);
     $("#ltNext").hidden = false;
     $("#ltNext").focus({ preventScroll: true });
   });
@@ -358,11 +418,12 @@ function finishTest(l, t) {
 
   const next = LESSONS.find((x) => x.n === l.n + 1);
   const missed = t.qs.filter((_, j) => !t.results[j]);
+  const bonus = passed ? (wasPassed ? XP.repass : XP.pass) : 0;
   $("#lTest").innerHTML = `
     <div class="lt-result ${passed ? "pass" : "fail"}">
       <div class="lt-seal${passed ? " pass stamp" : ""}" lang="ja">${passed ? "合格" : "もう少し"}</div>
       <div>
-        <div class="lt-score"><b>${score}</b> / ${t.qs.length}</div>
+        <div class="lt-score"><b>${score}</b> / ${t.qs.length}${bonus ? ` <span class="xp-chip">+${bonus} XP bonus</span>` : ""}</div>
         <h3>${passed ? (wasPassed ? "Passed again!" : `Lesson ${l.n} finished!`) : "Not quite there yet"}</h3>
         <p>${passed
           ? `<span lang="ja">合格</span> (gōkaku) means “passed”. ${next ? "On to the next lesson whenever you're ready." : "That was the last lesson — おめでとう!"}`
@@ -381,4 +442,119 @@ function finishTest(l, t) {
   $("#ltRetry").onclick = () => runTest(l, { qs: buildTest(l), i: 0, results: [] });
   const go = $("#ltNextLesson");
   if (go) go.onclick = () => showLesson(next.n, true);
+  if (bonus) addXP(bonus, $("#lTest .lt-score b"));
+  if (passed) burst($("#lTest .lt-seal"));
+}
+
+/* ------------------------------------------- Point checks: 5 questions on one grammar point */
+
+// Five of the point's own sentences: three gap-fills, one meaning, one "which sentence is right?".
+// Points that teach a verb form or pattern swap one gap-fill for a build-the-form question.
+function buildCheck(l, i) {
+  const all = lessonDrills(l);
+  const mine = shuffle(all.filter((d) => d.point === l.points[i]));
+  const kinds = [gapQ, gapQ, (d) => meaningQ(d, all), sentenceQ, gapQ];
+  const qs = mine.slice(0, CHECK_LEN).map((d, j) => kinds[j](d));
+  if (isFormLink(l.points[i].link)) qs[CHECK_LEN - 1] = formQ(l.points[i].link);
+  return shuffle(qs);
+}
+
+function drawPointStars(l, i) {
+  const s = pointStars(l.n, i);
+  const card = $(`#lp-${i}`);
+  card.classList.toggle("mastered", s === 3);
+  const btn = $("[data-check]", card);
+  btn.innerHTML = `${starsHTML(s)} ${s ? "Check again" : "Check it"} · ${CHECK_LEN} questions`;
+  btn.hidden = !$(".lp-check", card).hidden;
+}
+
+function openCheck(l, i) {
+  // One check open at a time.
+  l.points.forEach((_, j) => { if (j !== i) closeCheck(l, j); });
+  const card = $(`#lp-${i}`);
+  $(".lp-check", card).hidden = false;
+  drawPointStars(l, i);
+  runCheck(l, i, { qs: buildCheck(l, i), i: 0, results: [] });
+  scrollBelowBar(card);
+}
+
+function closeCheck(l, i) {
+  const box = $(`#lp-${i} .lp-check`);
+  if (box.hidden) return;
+  box.hidden = true;
+  box.innerHTML = "";
+  drawPointStars(l, i);
+}
+
+function runCheck(l, i, t) {
+  const box = $(`#lp-${i} .lp-check`);
+  box.innerHTML = `
+    <div class="lt-top">
+      <span class="small"><b>Check · question ${t.i + 1}</b> of ${t.qs.length}</span>
+      <div class="lt-dots">${progressDots(t)}</div>
+      <button class="icon-btn lp-close" aria-label="Close the check">✕</button>
+    </div>
+    <div class="lp-q"></div>
+    <div class="q-actions"><button class="btn primary" hidden>${t.i + 1 < t.qs.length ? "Next question →" : "See my stars →"}</button></div>`;
+  $(".lp-close", box).onclick = () => closeCheck(l, i);
+  const next = $(".q-actions .btn", box);
+  askIn($(".lp-q", box), t.qs[t.i], (ok, b) => {
+    t.results[t.i] = ok;
+    if (ok) addXP(XP.check, b);
+    $(".lt-dots", box).innerHTML = progressDots(t);
+    next.hidden = false;
+    next.focus({ preventScroll: true });
+  });
+  next.onclick = () => {
+    t.i++;
+    if (t.i < t.qs.length) runCheck(l, i, t);
+    else finishCheck(l, i, t);
+    if (box.getBoundingClientRect().top < 0) scrollBelowBar(box.parentElement);
+  };
+}
+
+const CHECK_WORDS = ["Keep going — try it again!", "One star — getting there.", "Two stars — nearly perfect!", "Three stars — perfect!"];
+
+function finishCheck(l, i, t) {
+  const score = t.results.filter(Boolean).length;
+  const stars = score >= 5 ? 3 : score === 4 ? 2 : score === 3 ? 1 : 0;
+  const old = pointStars(l.n, i);
+  const gained = Math.max(stars - old, 0);
+  if (gained) {
+    lessonState.stars[`${l.n}.${i}`] = stars;
+    store.set("pointStars", lessonState.stars);
+  }
+  const nextPoint = l.points.findIndex((_, j) => j > i && pointStars(l.n, j) < 3);
+  const missed = t.qs.filter((_, j) => !t.results[j]);
+  const box = $(`#lp-${i} .lp-check`);
+  box.innerHTML = `
+    <div class="lc-result">
+      <div class="lc-stars">${starsHTML(stars)}</div>
+      <div>
+        <div class="lt-score"><b>${score}</b> / ${t.qs.length}${gained ? ` <span class="xp-chip">+${gained * XP.star} XP · new star${gained > 1 ? "s" : ""}!</span>` : ""}</div>
+        <p>${CHECK_WORDS[stars]}${old > stars ? ` <span class="muted">(Your best is still ${old} ★.)</span>` : ""}</p>
+      </div>
+    </div>
+    ${missed.length ? `
+      <div class="lt-review">
+        <div class="small muted">Correct answers to the ones you missed</div>
+        <ul>${missed.map((q) => `<li>${q.review}</li>`).join("")}</ul>
+      </div>` : ""}
+    <div class="q-actions lt-actions">
+      <button class="btn" data-a="again">Try again</button>
+      ${nextPoint >= 0
+        ? `<button class="btn primary" data-a="next">Next point: <span lang="ja">${l.points[nextPoint].g}</span> ›</button>`
+        : `<button class="btn primary" data-a="test">On to the lesson test ↓</button>`}
+    </div>`;
+  $("[data-a=again]", box).onclick = () => runCheck(l, i, { qs: buildCheck(l, i), i: 0, results: [] });
+  $("[data-a=next], [data-a=test]", box).onclick = (e) => {
+    if (e.currentTarget.dataset.a === "next") openCheck(l, nextPoint);
+    else { closeCheck(l, i); scrollBelowBar($("#lTest").previousElementSibling); }
+  };
+  // Light up the stars one after another.
+  $$(".lc-stars .star.on", box).forEach((s, j) => s.style.setProperty("--d", `${j * 0.18}s`));
+  renderLessonStatus(l);
+  updateLessonPath();
+  if (gained) addXP(gained * XP.star, $(".lc-stars", box));
+  if (stars === 3) burst($(".lc-stars", box));
 }
