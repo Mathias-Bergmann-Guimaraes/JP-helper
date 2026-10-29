@@ -591,6 +591,11 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .use-ex { font-size: 1.3rem; line-height: 1.8; }
 .use-en { color: var(--muted); font-size: .9rem; }
 .hl { background: var(--c); color: var(--surface); border-radius: 5px; padding: 0 4px; font-weight: 700; }
+/* Selected pills keep their colour (a shade off) instead of turning plain selection blue. */
+.hl::selection, .hl *::selection, .blank.filled::selection {
+  background: color-mix(in srgb, var(--c) 70%, var(--text));
+  color: var(--surface);
+}
 .tip { font-size: .9rem; padding: 10px 14px; border-radius: 10px; border: 1px dashed var(--c); }
 .tip b { color: var(--c); margin-right: 6px; }
 
