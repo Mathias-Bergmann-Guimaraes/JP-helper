@@ -1,5 +1,5 @@
 // "Study with your AI": ready-made prompts for each lesson, to paste into any chatbot.
-// Locked like the rest of the Lessons tab (see LESSON_FILES in app.js); used by lesson-page.js.
+// Used by lesson-page.js.
 
 // Japanese markup as plain text: 学生(がくせい) with furigana, 学生 without. Highlights are dropped.
 const promptJa = (m, furi) => (furi ? m.replace(KANJI_RE, "$1($2)") : plain(m)).replace(/[{}]/g, "");

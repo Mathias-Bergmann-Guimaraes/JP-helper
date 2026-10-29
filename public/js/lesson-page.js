@@ -1,5 +1,5 @@
-// The Lessons tab: lesson list, AI study prompts, practice and tests. Only sent to browsers with approved access
-// (see server.js); loaded after app.js and uses its helpers.
+// The Lessons tab: lesson list, AI study prompts, practice and tests. Loaded after app.js and
+// uses its helpers.
 
 /* ---------------------------------------------------------------- Lessons (Minna no Nihongo order) */
 

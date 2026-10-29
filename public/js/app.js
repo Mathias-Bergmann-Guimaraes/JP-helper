@@ -28,45 +28,16 @@ const partsHTML = (parts) => parts.map((p) => `<span class="vp ${p.cls}">${ruby(
 const TABS = ["lessons", "structure", "particles", "verbs", "adjectives", "patterns", "practice"];
 
 function showTab(id) {
-  if (!TABS.includes(id)) id = lessonsOpen ? "lessons" : "structure";
+  if (!TABS.includes(id)) id = "lessons";
   $$("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
   $$(".panel").forEach((p) => p.classList.toggle("active", p.id === id));
   if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
 }
 
-/* ---------------------------------------------------------------- Lessons (locked) */
+/* ---------------------------------------------------------------- Account */
 
-// The Lessons tab is private. Its code and data are only sent by server.js to browsers whose
-// access is approved. Visitors request access from this tab with a username and password, and
-// can log in with them on any other browser. The other tabs are open to everyone.
-
-const LESSON_FILES = ["js/lessons.js", "js/drills.js", "js/lesson-prompts.js", "js/lesson-page.js"];
-let lessonsOpen = false;
-let accessTimer = null;
-let access = { status: "none" }; // last answer from the server: { status, code, username }
-let lockMode = "request"; // which form the locked tab shows: "request" or "login"
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = src;
-    s.async = false; // run in list order
-    s.onload = resolve;
-    s.onerror = () => reject(new Error(src));
-    document.body.append(s);
-  });
-}
-
-// Without server.js (e.g. the page opened as a file) there is no lock to ask, so just try the files.
-async function accessStatus() {
-  try {
-    const r = await fetch("/access/status", { cache: "no-store" });
-    if (!r.ok) throw new Error(r.status);
-    return await r.json();
-  } catch {
-    return { status: "offline" };
-  }
-}
+// The whole site is private: server.js only sends it to signed-in members, and shows everyone
+// else the login page (gate/login.html). Here the top bar shows who is signed in.
 
 async function post(url, data) {
   const r = await fetch(url, {
@@ -79,27 +50,29 @@ async function post(url, data) {
   return json;
 }
 
-function setAccess(state) {
-  access = state;
-  drawAccount();
+// Without server.js (e.g. the page opened as a file) there is no login, so nothing is shown.
+async function setupAccount() {
+  let state;
+  try {
+    const r = await fetch("/access/status", { cache: "no-store" });
+    if (!r.ok) return;
+    state = await r.json();
+  } catch {
+    return;
+  }
+  drawAccount(state);
+  if (state.status === "approved" && !state.username) showLinkCard();
 }
 
-// Top-bar account control: who is signed in, or a way to log in on this browser.
-function drawAccount() {
+function drawAccount(state) {
   const box = $("#account");
-  if (access.username) {
-    box.innerHTML = `<span class="account-name"></span><button class="account-btn" type="button">Log out</button>`;
-    $(".account-name", box).textContent = access.username;
-    $("button", box).onclick = logOut;
-  } else if (access.status === "none") {
-    box.innerHTML = `<button class="account-btn" type="button">Log in</button>`;
-    $("button", box).onclick = () => {
-      lockMode = "login";
-      if (!lessonsOpen) drawLock(access);
-      showTab("lessons");
-      window.scrollTo({ top: 0 });
-    };
-  } else box.innerHTML = "";
+  if (!state.username) {
+    box.innerHTML = "";
+    return;
+  }
+  box.innerHTML = `<span class="account-name"></span><button class="account-btn" type="button">Log out</button>`;
+  $(".account-name", box).textContent = state.username;
+  $("button", box).onclick = logOut;
 }
 
 async function logOut() {
@@ -108,124 +81,6 @@ async function logOut() {
   } finally {
     location.hash = "";
     location.reload();
-  }
-}
-
-async function openLessons() {
-  try {
-    await Promise.all(LESSON_FILES.map(loadScript));
-  } catch {
-    return false;
-  }
-  lessonsOpen = true;
-  clearInterval(accessTimer);
-  $('#tabs [data-tab="lessons"]').classList.remove("locked");
-  renderLessons();
-  if (access.status === "approved" && !access.username) showLinkCard();
-  return true;
-}
-
-async function setupLessons() {
-  setAccess(await accessStatus());
-  if ((access.status === "approved" || access.status === "offline") && (await openLessons())) return;
-  $('#tabs [data-tab="lessons"]').classList.add("locked");
-  $("#lessons").innerHTML = `
-    <div class="card lock-card">
-      <div class="lt-seal" id="lockSeal" lang="ja" aria-hidden="true"></div>
-      <div id="lockBody"></div>
-    </div>`;
-  drawLock(access);
-}
-
-const USER_FIELDS = (newPassword) => `
-  <label>Username ${newPassword ? `<small class="muted">(3–24 letters, numbers, . _ -)</small>` : ""}
-    <input name="username" maxlength="24" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
-  <label>Password ${newPassword ? `<small class="muted">(at least 8 characters)</small>` : ""}
-    <input name="password" type="password" maxlength="200" ${newPassword ? `minlength="8" autocomplete="new-password"` : `autocomplete="current-password"`} required></label>`;
-
-const ASK_FORMS = {
-  request: {
-    url: "/access/request",
-    button: "Request access",
-    intro: `The lesson course — 50 lessons with practice and a test each — is shared with invited learners.
-      Pick a username and password and send a request. Once the owner approves it, you can log in with
-      them on any browser. Everything else on this site is open to all.`,
-    fields: USER_FIELDS(true) + `
-      <label>Message <small class="muted">(optional — who you are, how you found it)</small>
-        <textarea name="message" maxlength="300"></textarea></label>`,
-  },
-  login: {
-    url: "/access/login",
-    button: "Log in",
-    intro: "Already sent a request? Log in with your username and password — on this or any other browser.",
-    fields: USER_FIELDS(false),
-  },
-};
-
-const SIGNED_IN = `<p class="lock-who">Signed in as <b id="lockUser"></b> · <button type="button" class="link-btn" id="lockLogout">Log out</button></p>`;
-
-const LOCK_VIEWS = {
-  ask: {
-    seal: ["鍵", "pass"],
-    html: () => {
-      const f = ASK_FORMS[lockMode];
-      const tab = (mode, label) => `<button type="button" data-mode="${mode}" class="${lockMode === mode ? "active" : ""}">${label}</button>`;
-      return `
-        <h2>The lessons are private</h2>
-        <p class="muted">${f.intro}</p>
-        <div class="seg lock-seg">${tab("request", "Request access")}${tab("login", "Log in")}</div>
-        <form class="lock-form" id="lockForm">
-          ${f.fields}
-          <p class="lock-error" id="lockError" role="alert"></p>
-          <button class="btn primary" type="submit">${f.button}</button>
-        </form>`;
-    },
-  },
-  pending: {
-    seal: ["待", "wait"],
-    html: (s) => `
-      <h2>Request sent</h2>
-      <p class="muted">Your request code is</p>
-      <div class="lock-code" id="lockCode"></div>
-      <p class="muted">The owner approves requests on their own computer. This tab opens by itself as soon
-      as you're let in${s.username ? " — and on your other browsers, just log in with the same username and password" : ""}.</p>
-      <span class="lock-live">Waiting for approval</span>
-      ${s.username ? SIGNED_IN : ""}`,
-  },
-  denied: {
-    seal: ["否", "no"],
-    html: (s) => `
-      <h2>Request declined</h2>
-      <p class="muted">The owner hasn't granted access to the lessons. The other tabs are still open to you.</p>
-      ${s.username ? SIGNED_IN : ""}`,
-  },
-};
-
-function drawLock(state) {
-  setAccess(state);
-  if (state.status === "approved") return openLessons();
-  const view = state.status === "pending" || state.status === "denied" ? state.status : "ask";
-  const seal = $("#lockSeal");
-  [seal.textContent, seal.className] = [LOCK_VIEWS[view].seal[0], `lt-seal ${LOCK_VIEWS[view].seal[1]}`];
-  $("#lockBody").innerHTML = LOCK_VIEWS[view].html(state);
-
-  if (view === "pending") {
-    $("#lockCode").textContent = state.code || "";
-    if (!accessTimer) accessTimer = setInterval(async () => drawLock(await accessStatus()), 8000);
-  } else {
-    clearInterval(accessTimer);
-    accessTimer = null;
-  }
-  if (state.username) {
-    $("#lockUser").textContent = state.username;
-    $("#lockLogout").onclick = logOut;
-  }
-  if (view === "ask") {
-    $$(".lock-seg button").forEach((b) => (b.onclick = () => {
-      lockMode = b.dataset.mode;
-      drawLock(access);
-    }));
-    $("#lockForm").onsubmit = (e) => submitForm(e, ASK_FORMS[lockMode].url, "#lockError", drawLock);
   }
 }
 
@@ -263,7 +118,7 @@ function showLinkCard() {
     </form>`;
   $("#lessons").prepend(card);
   $("#linkForm").onsubmit = (e) => submitForm(e, "/access/link", "#linkError", (state) => {
-    setAccess(state);
+    drawAccount(state);
     card.remove();
   });
 }
@@ -1134,7 +989,7 @@ function answer(i) {
 
 /* ---------------------------------------------------------------- Init */
 
-async function init() {
+function init() {
   const furi = $("#furiToggle");
   furi.checked = store.get("furigana", true);
   document.body.classList.toggle("no-furi", !furi.checked);
@@ -1158,9 +1013,10 @@ async function init() {
   $$("#tabs button").forEach((b) => (b.onclick = () => { showTab(b.dataset.tab); window.scrollTo({ top: 0 }); }));
   window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 
-  // Locked visitors land on Sentences instead of the request form.
-  await setupLessons();
+  renderLessons();
   showTab(location.hash.slice(1));
+  setupAccount();
 }
 
-init();
+// The lesson scripts load after this file (they use its helpers), so wait for all of them.
+document.addEventListener("DOMContentLoaded", init);

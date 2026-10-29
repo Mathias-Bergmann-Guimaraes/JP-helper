@@ -1,11 +1,12 @@
 // Access-gated server for the grammar site. No dependencies — run with `node server.js`.
 //
-// Public port (PORT, default 5173): the site in public/ is open to everyone except the Lessons
-// tab (LOCKED_FILES below). Visitors request access from that tab, and only a browser whose
-// request has been approved can download the lesson files.
+// Public port (PORT, default 5173): the whole site in public/ is private. Signed-in members with
+// approved access get it; everyone else only sees the login page (gate/login.html) and the fonts
+// it uses. From there visitors can send an access request for you to approve, or redeem a
+// single-use invite code, which lets them in straight away.
 //
 // Admin port (ADMIN_PORT, default 3004): bound to 127.0.0.1, so it is only reachable from this
-// machine. Open http://127.0.0.1:3004 here to approve, decline or revoke requests.
+// machine. Open http://127.0.0.1:3004 here to approve requests, create invites and manage access.
 
 const http = require("http");
 const fs = require("fs");
@@ -20,20 +21,22 @@ const ADMIN_HOST = "127.0.0.1";
 const PUBLIC_DIR = path.join(__dirname, "public");
 const GATE_DIR = path.join(__dirname, "gate");
 
-// Files only approved browsers may download: the Lessons tab and its data.
-const LOCKED_FILES = ["js/lessons.js", "js/drills.js", "js/lesson-prompts.js", "js/lesson-page.js"];
-// Compare resolved paths (case-folded where the file system ignores case) so tricks like
-// /js//lessons.js or /JS/Lessons.js can't slip past.
-const foldCase = (p) => (process.platform === "win32" || process.platform === "darwin" ? p.toLowerCase() : p);
-const LOCKED = new Set(LOCKED_FILES.map((f) => foldCase(path.join(PUBLIC_DIR, f))));
-const isLocked = (file) => file !== null && LOCKED.has(foldCase(file));
-const DATA_FILE = path.join(__dirname, "data", "access.json");
+// The only part of public/ that visitors without access may download: what the login page needs.
+const OPEN_DIR = path.join(PUBLIC_DIR, "fonts");
+const isOpen = (file) => {
+  if (file === null) return false;
+  const rel = path.relative(OPEN_DIR, file);
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+};
+const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : path.join(__dirname, "data", "access.json");
 
 const COOKIE = "jpg_access";
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 const MAX_BODY = 4 * 1024;
 const MAX_PENDING = 200; // stop a flood of requests from filling the list
 const REQUESTS_PER_IP_PER_HOUR = 5;
+const INVITE_DAYS = 14;
+const MAX_INVITES = 100;
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -47,15 +50,18 @@ const TYPES = {
 
 /* ---------------------------------------------------------------- Store */
 
-// data/access.json holds three maps:
-//   requests: { [id]: { name, message, ip, ua, status, requestedAt, decidedAt, lastSeen, account? } }
+// data/access.json holds four maps:
+//   requests: { [id]: { name, message, status, requestedAt, decidedAt, lastSeen, account?, invited?, ip?, ua? } }
 //   accounts: { [lower-case username]: { username, password, request } }  (password = scrypt hash)
 //   sessions: { [sha256(cookie token)]: { request, createdAt } }          (one per signed-in browser)
-// Approving, declining or revoking acts on a request. An account ties a username and password to
-// one request, so every browser that logs in shares its access. The file never holds a usable
-// cookie or a plain password.
+//   invites:  { [sha256(code)]: { note, createdAt, expiresAt } }          (unused invite codes)
+// A "request" is one person's access: the request form creates a pending one, an invite an
+// approved one, and approving, revoking or restoring acts on it. IP addresses are only used in
+// memory for rate limits — ip/ua exist only on requests sent before the site went private. An account
+// ties a username and password to one request, so every browser that logs in shares its access.
+// The file never holds a usable cookie, invite code or plain password.
 const db = loadDb();
-const { requests, accounts, sessions } = db;
+const { requests, accounts, sessions, invites } = db;
 const MAX_SESSIONS_PER_REQUEST = 20;
 
 function loadDb() {
@@ -63,11 +69,13 @@ function loadDb() {
   try {
     raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
   } catch { /* no file yet */ }
-  if (raw.requests) return { requests: raw.requests, accounts: raw.accounts || {}, sessions: raw.sessions || {} };
+  if (raw.requests) {
+    return { requests: raw.requests, accounts: raw.accounts || {}, sessions: raw.sessions || {}, invites: raw.invites || {} };
+  }
   // First version: browser-only requests keyed by the hash of that browser's token.
   const sessions = {};
   for (const [id, r] of Object.entries(raw)) sessions[id] = { request: id, createdAt: r.requestedAt };
-  return { requests: raw, accounts: {}, sessions };
+  return { requests: raw, accounts: {}, sessions, invites: {} };
 }
 
 function saveDb() {
@@ -140,6 +148,35 @@ function readCredentials(body, isNew) {
   return { username, key: username.toLowerCase(), password };
 }
 
+/* ---------------------------------------------------------------- Invites */
+
+// Codes look like K7P4Q-M2XRT: no 0/O, 1/I/L, so they survive being read out or copied by hand.
+const INVITE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const inviteKey = (code) => sha256(String(code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
+
+function newInvite(note) {
+  let code = "";
+  for (let i = 0; i < 10; i++) code += INVITE_ALPHABET[crypto.randomInt(INVITE_ALPHABET.length)];
+  const now = Date.now();
+  invites[inviteKey(code)] = {
+    note,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + INVITE_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  return `${code.slice(0, 5)}-${code.slice(5)}`;
+}
+
+function dropExpiredInvites() {
+  let dropped = false;
+  for (const [key, inv] of Object.entries(invites)) {
+    if (Date.parse(inv.expiresAt) <= Date.now()) {
+      delete invites[key];
+      dropped = true;
+    }
+  }
+  if (dropped) saveDb();
+}
+
 /* ---------------------------------------------------------------- Responses */
 
 function baseHeaders(extra = {}) {
@@ -147,6 +184,7 @@ function baseHeaders(extra = {}) {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
+    "X-Robots-Tag": "noindex", // a private site: keep even the login page out of search engines
     ...extra,
   };
 }
@@ -220,7 +258,7 @@ const cleanText = (v, max) => String(v ?? "").replace(/[\u0000-\u001f\u007f]/g, 
 
 /* ---------------------------------------------------------------- Public server */
 
-// Sliding-window counters: key -> timestamps. Used for new requests and for failed logins.
+// Sliding-window counters: key -> timestamps. Used for new requests, failed logins and wrong invite codes.
 const hits = new Map();
 function tooMany(key, limit, windowMs) {
   const since = Date.now() - windowMs;
@@ -258,22 +296,60 @@ async function handleRequest(req, res, me) {
   const pending = Object.values(requests).filter((r) => r.status === "pending").length;
   if (pending >= MAX_PENDING) return sendJson(res, 503, { error: "Too many open requests. Please try again later." });
 
+  const password = await hashPassword(cred.password);
+  // Hashing waits, so check again: another request may have taken the name meanwhile.
+  if (accounts[cred.key]) return sendJson(res, 409, { error: "That username is taken — log in instead, or pick another." });
   const id = crypto.randomBytes(32).toString("hex");
   requests[id] = {
     name: cred.username,
     message: cleanText(b.message, 300),
-    ip,
-    ua: cleanText(req.headers["user-agent"], 200),
     status: "pending",
     requestedAt: new Date().toISOString(),
     account: cred.key,
   };
-  accounts[cred.key] = { username: cred.username, password: await hashPassword(cred.password), request: id };
+  accounts[cred.key] = { username: cred.username, password, request: id };
   const setCookie = startSession(req, id);
   saveDb();
   note(`req:${ip}`);
 
-  console.log(`\x1b[33m● Access request\x1b[0m ${shortCode(id)} from "${cred.username}" (${ip}) — review at http://${ADMIN_HOST}:${ADMIN_PORT}`);
+  console.log(`\x1b[33m● Access request\x1b[0m ${shortCode(id)} from "${cred.username}" — review at http://${ADMIN_HOST}:${ADMIN_PORT}`);
+  sendJson(res, 200, accessState(id), { "Set-Cookie": setCookie });
+}
+
+// New member: trade an invite code for a username and password with access, and sign this browser in.
+async function handleSignup(req, res, me) {
+  const b = await body(req, res);
+  if (!b) return;
+  const ip = req.socket.remoteAddress || "";
+  if (tooMany(`invite:${ip}`, LOGIN_FAILS, LOGIN_WINDOW)) {
+    return sendJson(res, 429, { error: "Too many failed attempts. Please wait 15 minutes." });
+  }
+  const key = inviteKey(b.code);
+  const usable = () => invites[key] && Date.parse(invites[key].expiresAt) > Date.now();
+  if (!usable()) {
+    note(`invite:${ip}`);
+    return sendJson(res, 400, { error: "That invite code doesn't work. Check it, or ask for a new one." });
+  }
+  const cred = readCredentials(b, true);
+  if (cred.error) return sendJson(res, 400, { error: cred.error });
+  const taken = () => accounts[cred.key];
+  if (taken()) return sendJson(res, 409, { error: "That username is taken — pick another." });
+  const password = await hashPassword(cred.password);
+  // Hashing waits, so check again: another sign-up may have used the code or the name meanwhile.
+  if (!usable()) return sendJson(res, 400, { error: "That invite code has just been used." });
+  if (taken()) return sendJson(res, 409, { error: "That username is taken — pick another." });
+
+  const { note: who } = invites[key];
+  delete invites[key];
+  const id = crypto.randomBytes(32).toString("hex");
+  const now = new Date().toISOString();
+  requests[id] = { name: cred.username, message: who, status: "approved", requestedAt: now, decidedAt: now, account: cred.key, invited: true };
+  accounts[cred.key] = { username: cred.username, password, request: id };
+  if (me) delete sessions[me.sid];
+  const setCookie = startSession(req, id);
+  saveDb();
+
+  console.log(`\x1b[32m● New member\x1b[0m ${cred.username}${who ? ` (invite: ${who})` : ""}`);
   sendJson(res, 200, accessState(id), { "Set-Cookie": setCookie });
 }
 
@@ -336,6 +412,7 @@ function touch(id) {
 
 const ACCESS_ROUTES = {
   "/access/request": handleRequest,
+  "/access/signup": handleSignup,
   "/access/login": handleLogin,
   "/access/logout": handleLogout,
   "/access/link": handleLink,
@@ -352,12 +429,15 @@ const publicServer = http.createServer(async (req, res) => {
   }
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Method not allowed");
 
-  // The Lessons files need an approved request; everything else in public/ is open.
-  if (isLocked(resolveIn(PUBLIC_DIR, pathname))) {
-    if (!me || requests[me.id].status !== "approved") return sendText(res, 403, "Access required");
-    touch(me.id);
+  // Members get the site. Everyone else gets the login page at the site's address, the fonts it
+  // uses, and nothing more.
+  if (me && requests[me.id].status === "approved") {
+    if (pathname === "/") touch(me.id);
+    return sendFile(res, PUBLIC_DIR, pathname);
   }
-  return sendFile(res, PUBLIC_DIR, pathname);
+  if (isOpen(resolveIn(PUBLIC_DIR, pathname))) return sendFile(res, PUBLIC_DIR, pathname);
+  if (pathname === "/" || pathname === "/index.html") return sendFile(res, GATE_DIR, "/login.html");
+  return sendText(res, 403, "Access required");
 });
 
 /* ---------------------------------------------------------------- Admin server (this machine only) */
@@ -399,19 +479,50 @@ const adminServer = http.createServer(async (req, res) => {
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
     return sendJson(res, 200, list);
   }
-  if (req.method === "POST" && pathname === "/api/decide") {
-    // A decision must come from the admin page itself: same origin as the host it was sent to,
-    // so another app on a different localhost port can't approve anyone.
-    const origin = req.headers.origin;
-    if ((origin && origin !== `http://${host}`) || req.headers["x-admin"] !== "1") {
-      return sendText(res, 403, "Forbidden");
+  if (req.method === "GET" && pathname === "/api/invites") {
+    dropExpiredInvites();
+    const list = Object.entries(invites)
+      .map(([id, inv]) => ({ id, ...inv }))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return sendJson(res, 200, list);
+  }
+  if (req.method !== "POST" || !ADMIN_ACTIONS[pathname]) return sendText(res, 404, "Not found");
+
+  // A change must come from the admin page itself: same origin as the host it was sent to,
+  // so another app on a different localhost port can't let anyone in.
+  const origin = req.headers.origin;
+  if ((origin && origin !== `http://${host}`) || req.headers["x-admin"] !== "1") {
+    return sendText(res, 403, "Forbidden");
+  }
+  let body;
+  try {
+    body = await readJson(req);
+  } catch {
+    return sendJson(res, 400, { error: "Bad request" });
+  }
+  return ADMIN_ACTIONS[pathname](res, body);
+});
+
+const ADMIN_ACTIONS = {
+  // Returns the new code. Only its hash is stored, so this is the one time it can be shown.
+  "/api/invite": (res, body) => {
+    dropExpiredInvites();
+    if (Object.keys(invites).length >= MAX_INVITES) {
+      return sendJson(res, 400, { error: `There are already ${MAX_INVITES} unused invites. Cancel some first.` });
     }
-    let body;
-    try {
-      body = await readJson(req);
-    } catch {
-      return sendJson(res, 400, { error: "Bad request" });
-    }
+    const code = newInvite(cleanText(body.note, 100));
+    saveDb();
+    return sendJson(res, 200, { code, days: INVITE_DAYS });
+  },
+
+  "/api/invite/cancel": (res, body) => {
+    if (!invites[body.id]) return sendJson(res, 404, { error: "No such invite" });
+    delete invites[body.id];
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  },
+
+  "/api/decide": (res, body) => {
     const r = requests[body.id];
     if (!r) return sendJson(res, 404, { error: "No such request" });
     if (body.action === "delete") {
@@ -426,9 +537,8 @@ const adminServer = http.createServer(async (req, res) => {
     saveDb();
     console.log(`  ${body.action} ${shortCode(body.id)}${r.name ? ` (${r.name})` : ""}`);
     return sendJson(res, 200, { ok: true });
-  }
-  sendText(res, 404, "Not found");
-});
+  },
+};
 
 for (const [server, port, name] of [[publicServer, PORT, "PORT"], [adminServer, ADMIN_PORT, "ADMIN_PORT"]]) {
   server.on("error", (err) => {
@@ -443,5 +553,5 @@ publicServer.listen(PORT, HOST, () => {
   console.log(`Site:           http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
 });
 adminServer.listen(ADMIN_PORT, ADMIN_HOST, () => {
-  console.log(`Admin (local):  http://${ADMIN_HOST}:${ADMIN_PORT}  — approve access requests here`);
+  console.log(`Admin (local):  http://${ADMIN_HOST}:${ADMIN_PORT}  — approve requests and manage members here`);
 });

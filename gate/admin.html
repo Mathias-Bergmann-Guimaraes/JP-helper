@@ -4,10 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Bunpō · Access requests</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@500;700&display=swap" rel="stylesheet">
+  <title>Bunpō · Members</title>
   <style>
     :root {
       --bg: #f6f4ef; --surface: #ffffff; --surface-2: #f0ede6; --text: #1d2025; --muted: #6a6f78;
@@ -56,19 +53,54 @@
     button.deny { border-color: var(--bad); color: var(--bad); background: none; }
     button.quiet { background: none; color: var(--muted); }
     .empty { color: var(--muted); padding: 14px 16px; border: 1.5px dashed var(--border); border-radius: 14px; }
+    .req.invite { --c: var(--accent); }
+    .new-invite {
+      display: flex; gap: 8px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow);
+    }
+    .new-invite input {
+      flex: 1 1 220px; min-width: 0; font: inherit; color: var(--text); background: var(--surface-2);
+      border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 12px;
+    }
+    .new-invite input:focus { outline: none; border-color: var(--accent); }
+    button.primary { background: var(--text); border-color: var(--text); color: var(--surface); }
+    .issued { margin-top: 10px; padding: 16px; border-radius: 14px; border: 1.5px solid var(--accent); background: var(--surface); }
+    .issued[hidden] { display: none; }
+    .issued-code { font-size: 1.6rem; font-weight: 700; letter-spacing: .14em; margin: 4px 0 8px; user-select: all; }
+    .issued p { margin: 0; color: var(--muted); font-size: .88rem; }
+    .issued .actions { justify-content: flex-start; margin-top: 10px; }
+    .error { color: var(--bad); font-size: .88rem; margin: 6px 0 0; min-height: 1.2em; }
     @media (max-width: 560px) { .req { grid-template-columns: 1fr; } .actions { justify-content: flex-start; } }
   </style>
 </head>
 <body>
   <main>
-    <header><span class="brand-mark" lang="ja">文</span><h1>Access requests</h1></header>
-    <p class="lead">Only reachable from this computer. Approving a request unlocks the Lessons tab for that login on every browser it signs in from. Remove deletes the login and signs everyone out of it.</p>
+    <header><span class="brand-mark" lang="ja">文</span><h1>Members</h1></header>
+    <p class="lead">Only reachable from this computer. The site is private: people get in when you approve their
+      request, or straight away with an invite code you gave them. Revoke locks a member out on every browser;
+      Remove deletes the login.</p>
 
     <h2>Waiting <span class="count" id="nPending">0</span></h2>
     <div class="list" id="pending"></div>
-    <h2>Has access <span class="count" id="nApproved">0</span></h2>
+
+    <h2>New invite</h2>
+    <form class="new-invite" id="inviteForm">
+      <input name="note" maxlength="100" placeholder="Who is it for? (only you see this)" aria-label="Who is it for?">
+      <button class="primary" type="submit">Create invite</button>
+    </form>
+    <p class="error" id="inviteError" role="alert"></p>
+    <div class="issued" id="issued" hidden>
+      <p>Invite code<span id="issuedFor"></span></p>
+      <div class="issued-code" id="issuedCode"></div>
+      <p id="issuedNote"></p>
+      <div class="actions"><button type="button" id="copyCode">Copy code</button></div>
+    </div>
+
+    <h2>Open invites <span class="count" id="nInvites">0</span></h2>
+    <div class="list" id="invites"></div>
+    <h2>Members <span class="count" id="nApproved">0</span></h2>
     <div class="list" id="approved"></div>
-    <h2>Declined <span class="count" id="nDenied">0</span></h2>
+    <h2>No access <span class="count" id="nDenied">0</span></h2>
     <div class="list" id="denied"></div>
   </main>
 
@@ -85,7 +117,7 @@
     const ACTIONS = {
       pending: [["approve", "Approve", "approve"], ["deny", "Decline", "deny"]],
       approved: [["deny", "Revoke", "deny"]],
-      denied: [["approve", "Approve", "approve"], ["delete", "Remove", "quiet"]],
+      denied: [["approve", "Restore", "approve"], ["delete", "Remove", "quiet"]],
     };
 
     function card(r) {
@@ -101,36 +133,89 @@
       }
       c.append(who, actions);
       if (r.message) c.append(el("p", "msg", r.message));
-      const bits = [`Requested ${when(r.requestedAt)}`, r.ip, `${r.browsers} browser${r.browsers === 1 ? "" : "s"} signed in`];
-      if (r.decidedAt) bits.push(`${r.status === "approved" ? "Approved" : "Declined"} ${when(r.decidedAt)}`);
+      const bits = [`${r.invited ? "Joined" : "Requested"} ${when(r.requestedAt)}`, r.ip, `${r.browsers} browser${r.browsers === 1 ? "" : "s"} signed in`];
+      if (r.decidedAt && r.decidedAt !== r.requestedAt) bits.push(`${r.status === "approved" ? "Access given" : "Access removed"} ${when(r.decidedAt)}`);
       if (r.lastSeen) bits.push(`last visit ${when(r.lastSeen)}`);
       if (r.ua) bits.push(r.ua);
       c.append(el("div", "meta", bits.filter(Boolean).join(" · ")));
       return c;
     }
 
+    function inviteCard(inv) {
+      const c = el("div", "req invite");
+      const cancel = el("button", "quiet", "Cancel");
+      cancel.onclick = async () => {
+        cancel.disabled = true;
+        await post("/api/invite/cancel", { id: inv.id });
+        load();
+      };
+      const actions = el("div", "actions");
+      actions.append(cancel);
+      c.append(el("div", "who", inv.note || "Invite"), actions);
+      c.append(el("div", "meta", `Created ${when(inv.createdAt)} · works until ${when(inv.expiresAt)}`));
+      return c;
+    }
+
     async function load() {
-      const r = await fetch("/api/requests", { cache: "no-store" });
-      const list = await r.json();
+      const [list, invites] = await Promise.all(["/api/requests", "/api/invites"].map(async (url) => (await fetch(url, { cache: "no-store" })).json()));
       for (const status of ["pending", "approved", "denied"]) {
         const items = list.filter((x) => x.status === status);
         const box = document.getElementById(status);
         box.replaceChildren(...(items.length ? items.map(card) : [el("div", "empty", status === "pending" ? "No requests waiting." : "None yet.")]));
         document.getElementById("n" + status[0].toUpperCase() + status.slice(1)).textContent = items.length;
       }
+      document.getElementById("invites").replaceChildren(...(invites.length ? invites.map(inviteCard) : [el("div", "empty", "No unused invites.")]));
+      document.getElementById("nInvites").textContent = invites.length;
       const waiting = list.filter((x) => x.status === "pending").length;
-      document.title = (waiting ? `(${waiting}) ` : "") + "Bunpō · Access requests";
+      document.title = (waiting ? `(${waiting}) ` : "") + "Bunpō · Members";
+    }
+
+    async function post(url, data) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin": "1" },
+        body: JSON.stringify(data),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(json.error || "Something went wrong.");
+      return json;
     }
 
     async function decide(id, action, button) {
       button.disabled = true;
-      await fetch("/api/decide", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Admin": "1" },
-        body: JSON.stringify({ id, action }),
-      });
+      await post("/api/decide", { id, action });
       load();
     }
+
+    // The server keeps only a hash of each code, so this is the one place it is ever shown.
+    document.getElementById("inviteForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const note = form.note.value.trim();
+      document.getElementById("inviteError").textContent = "";
+      try {
+        const { code, days } = await post("/api/invite", { note });
+        document.getElementById("issuedCode").textContent = code;
+        document.getElementById("issuedFor").textContent = note ? ` for ${note}` : "";
+        document.getElementById("issuedNote").textContent =
+          `Works once, for ${days} days. Write it down or send it now — it can't be shown again. ` +
+          "They open the site, choose “I have an invite” and pick their own username and password.";
+        document.getElementById("issued").hidden = false;
+        document.getElementById("copyCode").textContent = "Copy code";
+        form.reset();
+        load();
+      } catch (err) {
+        document.getElementById("inviteError").textContent = err.message;
+      }
+    };
+    document.getElementById("copyCode").onclick = async (e) => {
+      try {
+        await navigator.clipboard.writeText(document.getElementById("issuedCode").textContent);
+        e.target.textContent = "Copied ✓";
+      } catch {
+        e.target.textContent = "Select the code and press Ctrl+C";
+      }
+    };
 
     load();
     setInterval(load, 5000);

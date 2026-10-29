@@ -432,58 +432,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
   to { transform: rotate(-8deg) scale(1); opacity: 1; }
 }
 
-/* Locked Lessons tab */
-.tabs button.locked::after {
-  content: "";
-  display: inline-block;
-  width: 11px;
-  height: 11px;
-  margin-left: 6px;
-  vertical-align: -1px;
-  background: currentColor;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 7V5a4 4 0 0 1 8 0v2h1v8H3V7h1zm2 0h4V5a2 2 0 0 0-4 0v2z'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 7V5a4 4 0 0 1 8 0v2h1v8H3V7h1zm2 0h4V5a2 2 0 0 0-4 0v2z'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-.lock-card { max-width: 520px; margin: 12px auto 0; text-align: center; padding: 32px 28px; }
-.lock-card .lt-seal { margin: 0 auto 18px; }
-.lock-card h2 { margin: 0 0 6px; font-size: 1.4rem; }
-.lock-card p { margin: 0 0 12px; }
-.lt-seal.wait { animation: breathe 2.4s ease-in-out infinite; }
-.lt-seal.no { border-color: var(--bad); color: var(--bad); }
-@keyframes breathe { 50% { transform: rotate(-8deg) scale(1.06); } }
-.lock-form { display: grid; gap: 14px; margin-top: 20px; text-align: left; }
-.lock-form label { display: grid; gap: 6px; font-weight: 600; font-size: .9rem; }
-.lock-form small { font-weight: 400; }
-.lock-form input, .lock-form textarea {
-  font: inherit;
-  color: var(--text);
-  background: var(--surface-2);
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  width: 100%;
-}
-.lock-form textarea { resize: vertical; min-height: 76px; }
-.lock-form input:focus, .lock-form textarea:focus { outline: none; border-color: var(--accent); }
+/* "Create login" card for browsers approved before logins existed */
+.lock-form { display: grid; gap: 14px; }
 .lock-form .btn { justify-content: center; padding: 11px; }
 .lock-error { color: var(--bad); font-size: .9rem; min-height: 1.2em; margin: 0 !important; }
-.lock-code {
-  display: inline-block;
-  margin: 2px 0 14px;
-  padding: 6px 14px;
-  border-radius: 10px;
-  background: var(--surface-2);
-  font-weight: 700;
-  letter-spacing: .12em;
-}
-.lock-live { display: inline-flex; align-items: center; gap: 8px; font-size: .88rem; color: var(--muted); }
-.lock-live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--good); animation: blink 1.6s ease-in-out infinite; }
-@keyframes blink { 50% { opacity: .25; } }
-.lock-seg { margin: 6px 0 2px; }
-.lock-who { margin: 16px 0 0 !important; font-size: .88rem; color: var(--muted); }
-.lock-who b { color: var(--text); }
-.link-btn { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); font-weight: 600; cursor: pointer; }
-.link-btn:hover { text-decoration: underline; }
 .link-card { display: grid; grid-template-columns: 1fr 1.3fr; gap: 20px; align-items: center; border-left: 5px solid var(--accent); }
 .link-card h3 { margin: 0 0 4px; }
 .link-card p { margin: 0; }
