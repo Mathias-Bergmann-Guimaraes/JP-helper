@@ -3,7 +3,10 @@
 A visual Japanese grammar site: colour-coded sentence blocks, particles, verb conjugation,
 adjectives, verb patterns and a practice page — plus a 50-lesson course with practice
 sentences, a 5-question check (worth up to three stars) for every grammar point and a test for
-every lesson. Right answers earn XP towards levels and a daily streak.
+every lesson. Right answers earn XP towards levels and a daily streak. Learners can also write
+three sentences of their own with each grammar point for extra XP; the site checks the basics
+(Japanese, not copied, the pattern spotted where it can tell) and builds a prompt to get them
+corrected by any chatbot.
 
 The whole site is **private**. Visitors without a login only see a login page. From there they
 can pick a username and password and send an access request, which you approve by hand — or
@@ -36,7 +39,8 @@ Without access, the server only sends `gate/login.html` (at `/`) and the files i
 data goes to Google. Accounts, invites and sessions are saved in `data/access.json`, which is not
 committed — older copies of that file are upgraded automatically.
 
-Lesson progress (test scores, stars, XP, best streak, the last lesson opened) is saved per
+Lesson progress (test scores, stars, XP, best streak, the last lesson opened, the sentences a
+member wrote) is saved per
 account in `data/progress.json`, so it follows a member to every browser they log in on.
 Progress made in a browser before logins existed moves into the first account that logs in
 there. **Remove** deletes it along with the login.

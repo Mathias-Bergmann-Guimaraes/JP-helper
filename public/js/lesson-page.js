@@ -14,7 +14,7 @@ const pointStars = (n, i) => lessonState.stars[`${n}.${i}`] || 0;
 const lessonStars = (l) => l.points.reduce((s, _, i) => s + pointStars(l.n, i), 0);
 
 // XP per right answer, and bonuses for finishing things.
-const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10 };
+const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10, write: 20, rewrite: 6 };
 const COMBO_AT = 5;
 
 function renderLessons() {
@@ -24,7 +24,8 @@ function renderLessons() {
       <h1>Grammar in <span class="accent">Minna no Nihongo</span> order</h1>
       <p>All 50 lessons of <span lang="ja">みんなの日本語 初級 Ⅰ・Ⅱ</span>, one after another. Each grammar point comes with an example,
       and <b>See it →</b> jumps to the picture that explains it. <b>Check</b> each point with 5 quick questions to earn up to
-      three stars, then pass the lesson test to finish the lesson. Every right answer earns XP.</p>
+      three stars, <b>write</b> three sentences of your own for extra XP, then pass the lesson test to finish the
+      lesson. Every right answer earns XP.</p>
       ${hudHTML()}
     </div>
     <div class="lessons-layout">
@@ -93,10 +94,12 @@ function showLesson(n, scroll) {
             <div class="lp-en">${p.en}</div>
             <div class="lp-actions">
               <button class="lp-check-btn" data-check="${i}"></button>
+              <button class="lp-write-btn" data-write="${i}"></button>
               ${p.link ? `<button class="lp-link" data-p="${i}">See it → ${linkLabel(p.link)}</button>` : ""}
             </div>
           </div>
           <div class="lp-check" hidden></div>
+          <div class="lp-write" hidden></div>
         </div>`).join("")}
     </div>
     <div class="lsection">
@@ -129,8 +132,9 @@ function showLesson(n, scroll) {
 
   $$("[data-p]", d).forEach((b) => (b.onclick = () => goTo(l.points[+b.dataset.p].link)));
   $$("[data-check]", d).forEach((b) => (b.onclick = () => openCheck(l, +b.dataset.check)));
+  $$("[data-write]", d).forEach((b) => (b.onclick = () => openWrite(l, +b.dataset.write)));
   $$("[data-go]", d).forEach((b) => (b.onclick = () => showLesson(+b.dataset.go, true)));
-  l.points.forEach((_, i) => drawPointStars(l, i));
+  l.points.forEach((_, i) => { drawPointStars(l, i); drawWriteBtn(l, i); });
   renderLessonStatus(l);
   renderAiPrompts(l);
   startLessonPractice(l);
@@ -182,6 +186,7 @@ function renderLessonStatus(l) {
     <div class="lmastery">
       <span class="lmastery-stars"><span class="star on">★</span> <b>${stars}</b> / ${max} stars</span>
       <span class="lmastery-bar"><span style="width:${(stars / max) * 100}%"></span></span>
+      <span class="lmastery-write" title="Grammar points you've written your own sentences for">✎ <b>${writtenCount(l)}</b> / ${l.points.length} written</span>
     </div>
     <div class="lstatus-row">
       ${lessonPassed(l.n) ? `<span class="lstatus done">✓ Lesson finished · best test score ${best} / ${TEST_LEN}</span>` : ""}
@@ -470,8 +475,8 @@ function drawPointStars(l, i) {
 }
 
 function openCheck(l, i) {
-  // One check open at a time.
-  l.points.forEach((_, j) => { if (j !== i) closeCheck(l, j); });
+  // One check (or writing box) open at a time.
+  l.points.forEach((_, j) => { closeWrite(l, j); if (j !== i) closeCheck(l, j); });
   const card = $(`#lp-${i}`);
   $(".lp-check", card).hidden = false;
   drawPointStars(l, i);

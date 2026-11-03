@@ -431,11 +431,16 @@ function touch(id) {
 //            undo a lesson finished on the laptop.
 //   max    — a number that only goes up.
 //   latest — anything (the last lesson opened, XP): the latest change wins.
+//   texts  — { [name]: [string] } (sentences the member wrote): the latest list of each name wins.
 // The page gets this list too (in progress.js), so adding a key here is all it takes.
-const PROGRESS_MERGE = { lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest" };
-const MAX_PROGRESS_BODY = 32 * 1024;
+const PROGRESS_MERGE = {
+  lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest", sentences: "texts",
+};
+const MAX_PROGRESS_BODY = 512 * 1024;
 const MAX_LATEST = 2 * 1024;
 const MAX_SCORES = 1000;
+const MAX_TEXTS = 5; // strings per name
+const MAX_TEXT = 200; // characters per string
 const SCORE_NAME_RE = /^[\w.-]{1,20}$/;
 const isScore = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1e9;
 
@@ -457,6 +462,15 @@ function mergeProgress(how, saved, v) {
   if (how === "latest") return v !== null && JSON.stringify(v).length <= MAX_LATEST ? v : undefined;
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   const out = { ...saved };
+  if (how === "texts") {
+    for (const [name, list] of Object.entries(v)) {
+      const ok = SCORE_NAME_RE.test(name) && Array.isArray(list) && list.length <= MAX_TEXTS &&
+        list.every((t) => typeof t === "string" && t.length <= MAX_TEXT);
+      if (!ok) return undefined;
+      out[name] = list;
+    }
+    return Object.keys(out).length <= MAX_SCORES ? out : undefined;
+  }
   for (const [name, score] of Object.entries(v)) {
     if (!SCORE_NAME_RE.test(name) || !isScore(score)) return undefined;
     out[name] = Math.max(out[name] ?? -1, score);

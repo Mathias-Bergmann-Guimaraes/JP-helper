@@ -36,6 +36,9 @@ const store = {
 // marked with whose progress it holds ("progressOwner"), so a second account on this browser
 // starts clean. Without server.js (the page opened as a file) progress stays in this browser.
 const progress = { sync: false, merge: {}, pending: null, sending: false };
+// Chatbot answers pasted into the site can be long, so they stay in this browser — but they still
+// belong to the account, so they go with it on log out or when someone else logs in here.
+const LOCAL_PROGRESS = ["aiFeedback", "aiAnswers"];
 
 function queueProgress(patch) {
   progress.pending = Object.assign(progress.pending || {}, patch);
@@ -68,6 +71,7 @@ addEventListener("pagehide", () => {
   // server gets what it is missing: the higher score wins, and the last lesson opened (and other
   // "latest" values) only come from here if the server has none yet. Anyone else's is replaced.
   const mine = [null, s.owner].includes(store.get("progressOwner", null));
+  if (!mine) LOCAL_PROGRESS.forEach((k) => store.del(k));
   const upload = {};
   for (const [k, how] of Object.entries(s.merge)) {
     const there = s.progress[k];
@@ -77,6 +81,12 @@ addEventListener("pagehide", () => {
       v = { ...there };
       for (const [n, score] of Object.entries(here)) {
         if (score > (v[n] ?? -1)) { v[n] = score; upload[k] = here; }
+      }
+    } else if (here !== undefined && how === "texts") {
+      // Only entries the server doesn't have yet go up: it keeps the latest of each.
+      v = { ...there };
+      for (const [n, t] of Object.entries(here)) {
+        if (!(n in v)) { v[n] = t; upload[k] = { ...upload[k], [n]: t }; }
       }
     } else if (here !== undefined && how === "max") {
       if (here > (there ?? 0)) { v = here; upload[k] = here; }
@@ -93,7 +103,7 @@ addEventListener("pagehide", () => {
 
 // On log out, so the next person on this browser doesn't see this account's progress.
 function clearProgress() {
-  for (const k of [...Object.keys(progress.merge), "progressOwner"]) store.del(k);
+  for (const k of [...Object.keys(progress.merge), ...LOCAL_PROGRESS, "progressOwner"]) store.del(k);
 }
 
 const partsHTML = (parts) => parts.map((p) => `<span class="vp ${p.cls}">${ruby(p.m)}</span>`).join("");

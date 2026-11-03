@@ -57,10 +57,11 @@ My question: ` },
 
   { id: "check", label: "Check my sentences", desc: "Write your own sentences at the end of the prompt and get them corrected.", typeAtEnd: true,
     task: ({ f }) => `I'll write my own sentences using ${f}. For each one:
-- Say whether it's correct ✓ or not ✗.
-- If not, show the corrected sentence and explain the fix with blocks.
-- Suggest a more natural way to say it, if there is one.
-Be encouraging but honest — don't let mistakes slide.
+- Start with one line: its number, my sentence exactly as I wrote it, then ✓ if it's correct or ✗ if not (e.g. "2. 私は学生です ✗").
+- If not, give the corrected sentence on its own line starting with "Correct:", then explain the fix with blocks.
+- Suggest a more natural way to say it, if there is one, on a line starting with "Natural:".
+- List new words on one line like "Words: 漫画 = manga, とても = very".
+Be encouraging but honest — don't let mistakes slide. I'll paste your answer into my study site, so keep this layout.
 
 My sentences:
 1. ` },
@@ -113,7 +114,20 @@ function renderAiPrompts(l) {
     <div class="ai-actions">
       <span class="small muted">Paste it into ChatGPT, Claude, Gemini or any chatbot. You can edit it first.</span>
       <button class="btn primary" id="aiCopy">Copy prompt</button>
+    </div>
+    <div class="ai-read">
+      <h4>Read the answer here</h4>
+      <p class="small muted">Copy what the chatbot wrote back and paste it below: it's redrawn with this site's colour
+        blocks and furigana. Kept for this lesson in this browser.</p>
+      ${aiReaderHTML("Paste the chatbot's answer here")}
     </div>`;
+  const answers = store.get("aiAnswers", {});
+  setupAiReader($(".ai-read .ar", box), answers[l.n], (text) => {
+    const all = store.get("aiAnswers", {});
+    if (text) all[l.n] = text;
+    else delete all[l.n];
+    store.set("aiAnswers", all);
+  });
   $$("[data-ai]", box).forEach((b) => (b.onclick = () => {
     aiState.preset = b.dataset.ai;
     store.set("aiPreset", aiState.preset);
