@@ -283,6 +283,7 @@ function showWritten(l, i, xp = 0, first = false) {
       <textarea class="ai-text lw-prompt" rows="8" readonly hidden aria-label="Prompt to copy"></textarea>
       <p class="small lw-step2"><b>2.</b> Copy the chatbot's answer and paste it here to read it in colour.</p>
       ${aiReaderHTML("Paste the chatbot's answer here")}
+      <p class="small lw-saved" hidden></p>
     </div>
     <div class="q-actions lt-actions">
       <button class="btn" data-a="edit">Edit these</button>
@@ -319,9 +320,15 @@ function showWritten(l, i, xp = 0, first = false) {
     else delete feedback[key];
     store.set("aiFeedback", feedback);
     markVerdicts(text);
+    // The ✗ sentences and their corrections go to "Your mistakes".
+    saveCorrections(l, i, text, mine);
+    drawSavedNote(l, i);
   });
   $(".ar-in", box).addEventListener("input", (e) => markVerdicts(e.target.value));
   markVerdicts(feedback[key]);
+  // An answer pasted before the reader knew its layout is read again once.
+  if (feedback[key] && needsReading(key)) saveCorrections(l, i, feedback[key], mine);
+  drawSavedNote(l, i);
   if (xp) addXP(xp, $(".lw-badge", box));
   if (first) burst($(".lw-badge", box));
 }

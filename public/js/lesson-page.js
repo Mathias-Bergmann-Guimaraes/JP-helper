@@ -102,6 +102,7 @@ function showLesson(n, scroll) {
           <div class="lp-write" hidden></div>
         </div>`).join("")}
     </div>
+    <div id="lMistakes"></div>
     <div class="lsection">
       <h3>Study with your AI</h3>
       <p class="small muted">Ready-made prompts that already know this lesson. Pick one, copy it, and paste it into the chatbot you use.</p>
@@ -136,6 +137,9 @@ function showLesson(n, scroll) {
   $$("[data-go]", d).forEach((b) => (b.onclick = () => showLesson(+b.dataset.go, true)));
   l.points.forEach((_, i) => { drawPointStars(l, i); drawWriteBtn(l, i); });
   renderLessonStatus(l);
+  mistakeRound.on = false;
+  readSavedAnswers(l);
+  renderMistakes(l);
   renderAiPrompts(l);
   startLessonPractice(l);
   showTestIntro(l);
@@ -302,6 +306,7 @@ function askIn(box, q, done) {
   $$(".q-opt", box).forEach((b) => (b.onclick = () => {
     const i = +b.dataset.i;
     const ok = q.options[i].correct;
+    if (q.answered) q.answered(ok);
     $$(".q-opt", box).forEach((x, j) => {
       x.disabled = true;
       if (q.options[j].correct) x.classList.add("right");
@@ -339,7 +344,10 @@ function nextLessonPractice(l) {
   if (!lp.deck.length) lp.deck = shuffle(drills.map((_, i) => i));
   const r = Math.random();
   let q;
-  if (forms.length && r < 0.2) q = formQ(pick(forms));
+  // Now and then, one of your own corrected sentences.
+  const own = Math.random() < 0.15 && pickMistake(l);
+  if (own) q = mistakeQ(l, own.i, own.m);
+  else if (forms.length && r < 0.2) q = formQ(pick(forms));
   else {
     const d = drills[lp.deck.pop()];
     q = r < 0.4 ? meaningQ(d, drills) : gapQ(d);
@@ -455,13 +463,16 @@ function finishTest(l, t) {
 /* ------------------------------------------- Point checks: 5 questions on one grammar point */
 
 // Five of the point's own sentences: three gap-fills, one meaning, one "which sentence is right?".
-// Points that teach a verb form or pattern swap one gap-fill for a build-the-form question.
+// Points that teach a verb form or pattern swap one gap-fill for a build-the-form question, and
+// a mistake of your own for the point (see lesson-mistakes.js) takes the place of another.
 function buildCheck(l, i) {
   const all = lessonDrills(l);
   const mine = shuffle(all.filter((d) => d.point === l.points[i]));
   const kinds = [gapQ, gapQ, (d) => meaningQ(d, all), sentenceQ, gapQ];
   const qs = mine.slice(0, CHECK_LEN).map((d, j) => kinds[j](d));
   if (isFormLink(l.points[i].link)) qs[CHECK_LEN - 1] = formQ(l.points[i].link);
+  const own = pickMistake(l, i);
+  if (own) qs[Math.min(1, qs.length)] = mistakeQ(l, i, own.m);
   return shuffle(qs);
 }
 

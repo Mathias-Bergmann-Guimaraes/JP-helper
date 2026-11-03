@@ -70,6 +70,79 @@ function aiVerdicts(text) {
   return out;
 }
 
+// "Correct: …", "Natural: …" — a fixed or better version of the sentence.
+const AI_FIX_RE = /^(?:✓\s*)?(correct(?:ed)?(?: version| sentence)?|fix(?:ed)?|better|more natural|natural)\s*[:：]\s*(.+)$/i;
+
+// A Japanese sentence as the chatbot wrote it, as plain text: no furigana, Markdown or quotes,
+// and no translation in brackets at the end.
+function aiPlainJa(s) {
+  return s.replace(/\*\*|__|`/g, "")
+    .replace(/([㐀-鿿々〆ヶ]+)[(（][぀-ゟー]+[)）]/g, "$1")
+    .replace(/\s*[(（][^぀-ヿ㐀-鿿]*[)）]\s*$/, "")
+    .replace(/\s*[→←].*$/, "")
+    .replace(/(?<=[぀-ヿ㐀-鿿。、])\s+|\s+(?=[぀-ヿ㐀-鿿。、])/g, "")
+    .replace(/^[「"“]|[」"”]$/g, "")
+    .trim();
+}
+
+// "✅ この漫画はとても面白いです。" — under a ✗ sentence, a line starting with a tick is the fix.
+const AI_TICK_RE = /^[✓✔✅]\s*([^A-Za-z]*[぀-ヿ㐀-鿿][^]*)$/u;
+
+// The English for a sentence, on the line below it: "(This is a pen.)" or "“This is a pen.”",
+// maybe with a note after the quote. Returns { en, rest } or null.
+function aiEnglishLine(s) {
+  let m = s.match(/^[(（](.*)[)）]$/);
+  if (m && m[1] && !JA_CHAR.test(m[1])) return { en: m[1], rest: "" };
+  m = s.match(/^[“"]([^“”"]+)[”"]\s*(.*)$/);
+  if (m && !JA_CHAR.test(m[1])) return { en: m[1], rest: m[2] };
+  return null;
+}
+
+const AI_FIX_HEAD_RE =/^(fix|option|version|alternative)\s*\w{0,2}\s*[—–:-]/i;
+
+// Each ✗ sentence in an answer with its correction: [{ n, text, right, en }]. The correction is
+// the first "Correct:" line, else the first sentence under a "Fix A —" heading, else a "Natural:"
+// line. The English comes from a "(…)" at its end or a line of English right below it.
+function aiCorrections(text) {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n").map((x) => x.trim()).filter(Boolean);
+  const out = [];
+  let cur = null;
+  let underFix = false;
+  const english = (s) => !!s && !JA_CHAR.test(s) && !SQUARE_RE.test(s) && s.length < 160 && !/^[-*•#|>↑↓→]/.test(s);
+  const offer = (rank, ja, i) => {
+    if (cur.rank <= rank) return;
+    Object.assign(cur, { rank, right: aiPlainJa(ja) });
+    const end = ja.match(/[(（]([^぀-ヿ㐀-鿿]+)[)）]\s*$/);
+    const next = aiEnglishLine(lines[i + 1] || "");
+    cur.en = end ? end[1] : next ? next.en : rank === 2 && english(lines[i + 1]) ? lines[i + 1] : "";
+  };
+  let inCode = false;
+  lines.forEach((line, i) => {
+    if (line.startsWith("```")) { inCode = !inCode; return; }
+    if (inCode) return;
+    const v = aiVerdictLine(line);
+    if (v) {
+      cur = v.ok ? null : { n: v.n, text: aiPlainJa(v.text), right: "", en: "", rank: 9 };
+      if (cur) out.push(cur);
+      underFix = false;
+      return;
+    }
+    if (!cur) return;
+    const bare = aiBare(line);
+    const m = bare.match(AI_FIX_RE);
+    if (m && JA_CHAR.test(m[2])) { offer(/natural|better/i.test(m[1]) ? 3 : 1, m[2], i); return; }
+    const tick = bare.match(AI_TICK_RE);
+    if (tick) { offer(1, tick[1], i); return; }
+    if (AI_FIX_HEAD_RE.test(bare) && !JA_CHAR.test(bare)) { underFix = true; return; }
+    if (underFix && JA_CHAR.test(line) && !aiWords(line)) {
+      const blocks = aiBlocks(line);
+      offer(2, blocks ? blocks.map((b) => b.text).join("") : bare.replace(/^[-*•]\s+/, ""), i);
+      underFix = false;
+    }
+  });
+  return out.filter((c) => c.right).map(({ rank, ...c }) => c);
+}
+
 // "🟦 私は | 🟩 本を | 🟪 読みます" → blocks. Null if the line isn't one.
 function aiBlocks(line) {
   const s = aiBare(line).replace(/^[-*•]\s+/, "");
@@ -77,18 +150,26 @@ function aiBlocks(line) {
   const parts = s.split(/\s*[|｜]\s*/).filter(Boolean);
   if (parts.length < 2 && !SQUARE_RE.test(s.slice(0, 2))) return null;
   const blocks = [];
-  for (const part of parts) {
+  for (let part of parts) {
+    // "[この = this] 🟦 この漫画は": a bracket with "=" is a note on the words, not the block's job.
+    let note = "";
+    const before = part.match(/^[[［]([^\]］]*[=＝][^\]］]*)[\]］]\s*(.+)$/);
+    const after = part.match(/^(.+?)\s*[[［]([^\]］]*[=＝][^\]］]*)[\]］]$/);
+    if (before) [note, part] = [before[1], before[2]];
+    else if (after) [part, note] = [after[1], after[2]];
     let m = part.match(/^([🟦🟥🟩🟧🟪🟨🟫])\s*(.+)$/u);
-    if (m) { blocks.push({ role: AI_SQUARES[m[1]], text: m[2] }); continue; }
+    if (m) { blocks.push({ role: AI_SQUARES[m[1]], text: m[2], note }); continue; }
     m = part.match(/^[[［](.+?)[\]］]\s*(.+)$/);
     if (m) {
       const label = m[1];
       const hit = AI_LABEL_ROLES.find(([re]) => re.test(label.toLowerCase()));
-      blocks.push({ role: hit ? hit[1] : null, label, text: m[2] });
+      blocks.push({ role: hit ? hit[1] : null, label, text: m[2], note });
       continue;
     }
-    if (!JA_CHAR.test(part)) return null;
-    blocks.push({ role: null, text: part });
+    // Without a colour or a label it has to be just Japanese: an English sentence that happens
+    // to mention blocks ("the shape is 🟦 N は | 🟪 ですか") is not a line of blocks.
+    if (!JA_CHAR.test(part) || /[A-Za-z]+\s+[A-Za-z]+/.test(part)) return null;
+    blocks.push({ role: null, text: part, note });
   }
   return blocks;
 }
@@ -99,7 +180,7 @@ function aiBlocksHTML(blocks, gloss) {
     return `<div class="chunk${r ? "" : " ar-plain"}" style="--c:${r ? r.color : "var(--muted)"}">
       <div class="chunk-jp" lang="ja">${aiInline(b.text)}</div>
       <div class="chunk-role">${aiEsc(b.label || (r ? r.label : ""))}</div>
-      ${gloss ? `<div class="ar-gloss">${aiInline(gloss[i])}</div>` : ""}
+      ${gloss || b.note ? `<div class="ar-gloss">${aiInline(gloss ? gloss[i] : b.note)}</div>` : ""}
     </div>`;
   }).join("")}</div>`;
 }
@@ -121,11 +202,13 @@ function aiTableHTML(rows) {
 }
 
 // "Words: この = this, 漫画(まんが) = manga" → word chips.
+// Without the "Words:" label it takes two or more pairs, each Japanese = English.
 function aiWords(line) {
   const m = aiBare(line).match(/^(?:new\s+)?(?:words?|vocab(?:ulary)?|語彙)\s*[:：]\s*(.+)$/i);
-  if (!m) return null;
-  const pairs = m[1].replace(/[.。]\s*$/, "").split(/\s*[,、;；]\s*(?=[^=]*=)/).map((p) => p.split(/\s*[=＝:：]\s*/));
+  const body = m ? m[1] : aiBare(line);
+  const pairs = body.replace(/[.。]\s*$/, "").split(/\s*[,、;；]\s*(?=[^=]*=)/).map((p) => p.split(/\s*[=＝:：]\s*/));
   if (!pairs.length || pairs.some((p) => p.length !== 2)) return null;
+  if (!m && (pairs.length < 2 || pairs.some(([ja, en]) => !JA_CHAR.test(ja) || JA_CHAR.test(en) || en.length > 40))) return null;
   return `<div class="ar-words">${pairs.map(([ja, en]) =>
     `<span class="ar-word"><span lang="ja">${aiInline(ja)}</span><span>${aiInline(en)}</span></span>`).join("")}</div>`;
 }
@@ -156,6 +239,17 @@ function renderAiAnswer(text) {
     const line = raw.trim();
     const next = (lines[i + 1] || "").trim();
     if (!line) { closeList(); continue; }
+
+    // A code block, in case the chatbot uses one anyway: no ``` showing, lines kept as they are.
+    if (line.startsWith("```")) {
+      closeList();
+      let end = i + 1;
+      while (end < lines.length && !lines[end].trim().startsWith("```")) end++;
+      const rows = lines.slice(i + 1, end);
+      i = end;
+      if (rows.some((r) => r.trim())) emit(`<div class="ar-diagram" lang="ja">${rows.map((r) => aiInline(r.replace(/\s+$/, ""))).join("\n")}</div>`);
+      continue;
+    }
 
     const verdict = aiVerdictLine(line);
     if (verdict) { closeList(); closeCard(); card = { ...verdict, body: [] }; continue; }
@@ -194,15 +288,34 @@ function renderAiAnswer(text) {
     }
 
     const bare = aiBare(line);
-    const correct = bare.match(/^(?:✓\s*)?(correct(?:ed)?(?: version| sentence)?|fix(?:ed)?|better|more natural|natural)\s*[:：]\s*(.+)$/i);
-    if (correct && JA_CHAR.test(correct[2])) {
+    // "Correct: …", or "✅ …" under a ✗ sentence: the fixed sentence, with its English below.
+    const correct = bare.match(AI_FIX_RE);
+    const tick = card && !card.ok && bare.match(AI_TICK_RE);
+    if ((correct && JA_CHAR.test(correct[2])) || tick) {
       closeList();
-      let caption = "";
-      if (/^[(（].*[)）]$/.test(next) && !JA_CHAR.test(next)) { caption = next.slice(1, -1); i++; }
-      emit(`<div class="ar-fix"><div class="ar-fix-label">${aiEsc(correct[1])}</div>
-        <div class="ar-fix-sent" lang="ja">${aiInline(correct[2])}</div>
-        ${caption ? `<div class="ar-caption">${aiInline(caption)}</div>` : ""}</div>`);
+      const en = aiEnglishLine(next);
+      if (en) i++;
+      emit(`<div class="ar-fix"><div class="ar-fix-label">${aiEsc(correct ? correct[1] : "Correct")}</div>
+        <div class="ar-fix-sent" lang="ja">${aiInline(correct ? correct[2] : tick[1])}</div>
+        ${en ? `<div class="ar-caption">${aiInline(en.en)}${en.rest ? ` <span class="muted">${aiInline(en.rest)}</span>` : ""}</div>` : ""}</div>`);
       continue;
+    }
+
+    // A text diagram (lined up with spaces, arrows on their own line) keeps its lines and spacing.
+    // Nested list items are indented too, so they don't count; and a group needs an arrow line
+    // or an indented line, not just double spaces (which some text has after full stops).
+    const shaped = (s) => /^\s{3,}(?![-*•]\s|\d+[.)]\s)\S/.test(s) || /^\s*[↑↓|│^]+\s*$/.test(s);
+    const diagramLine = (s) => shaped(s) || /\S {2,}\S/.test(s);
+    if (diagramLine(raw) && diagramLine(lines[i + 1] || "")) {
+      let end = i;
+      while (end < lines.length && lines[end].trim()) end++;
+      const rows = lines.slice(i, end);
+      if (rows.some(shaped)) {
+        closeList();
+        i = end - 1;
+        emit(`<div class="ar-diagram" lang="ja">${rows.map((r) => aiInline(r.replace(/\s+$/, ""))).join("\n")}</div>`);
+        continue;
+      }
     }
 
     const words = aiWords(line);
@@ -234,7 +347,8 @@ function renderAiAnswer(text) {
     closeList();
     if (/^[(（].*[)）]$/.test(line) && !JA_CHAR.test(line)) { emit(`<div class="ar-caption">${aiInline(line.slice(1, -1))}</div>`); continue; }
     if (/^>\s?/.test(line)) { emit(`<blockquote class="ar-quote">${aiInline(line.replace(/^>\s?/, ""))}</blockquote>`); continue; }
-    emit(`<p class="ar-p">${aiInline(line)}</p>`);
+    // "Problem 1: …", "The fix: …" — the label in bold.
+    emit(`<p class="ar-p">${aiInline(line).replace(/^((?:problem|issue|mistake|the fix|fix|why|note|tip)\s*\d*\s*[:：])/i, "<b>$1</b>")}</p>`);
   }
   closeList();
   closeCard();

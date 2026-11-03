@@ -432,16 +432,25 @@ function touch(id) {
 //   max    — a number that only goes up.
 //   latest — anything (the last lesson opened, XP): the latest change wins.
 //   texts  — { [name]: [string] } (sentences the member wrote): the latest list of each name wins.
+//   notes  — { [name]: [{ w, r, en, n }] } (corrected mistakes: wrong, right, English, times
+//            answered right since): the latest list of each name wins.
 // The page gets this list too (in progress.js), so adding a key here is all it takes.
 const PROGRESS_MERGE = {
   lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest", sentences: "texts",
+  mistakes: "notes",
 };
 const MAX_PROGRESS_BODY = 512 * 1024;
 const MAX_LATEST = 2 * 1024;
 const MAX_SCORES = 1000;
 const MAX_TEXTS = 5; // strings per name
 const MAX_TEXT = 200; // characters per string
+const MAX_NOTES = 10; // mistakes per name
 const SCORE_NAME_RE = /^[\w.-]{1,20}$/;
+const isText = (t, min = 0) => typeof t === "string" && t.length >= min && t.length <= MAX_TEXT;
+const isNote = (o) => o && typeof o === "object" && !Array.isArray(o) &&
+  Object.keys(o).every((k) => ["w", "r", "en", "n"].includes(k)) &&
+  isText(o.w, 1) && isText(o.r, 1) && (o.en === undefined || isText(o.en)) &&
+  Number.isInteger(o.n) && o.n >= 0 && o.n <= 99;
 const isScore = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1e9;
 
 // `owner` lets a browser tell whose progress it has saved locally, so a second account on the
@@ -462,12 +471,14 @@ function mergeProgress(how, saved, v) {
   if (how === "latest") return v !== null && JSON.stringify(v).length <= MAX_LATEST ? v : undefined;
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   const out = { ...saved };
-  if (how === "texts") {
+  if (how === "texts" || how === "notes") {
+    const [max, valid] = how === "texts" ? [MAX_TEXTS, (t) => isText(t)] : [MAX_NOTES, isNote];
     for (const [name, list] of Object.entries(v)) {
-      const ok = SCORE_NAME_RE.test(name) && Array.isArray(list) && list.length <= MAX_TEXTS &&
-        list.every((t) => typeof t === "string" && t.length <= MAX_TEXT);
+      const ok = SCORE_NAME_RE.test(name) && Array.isArray(list) && list.length <= max && list.every(valid);
       if (!ok) return undefined;
-      out[name] = list;
+      // An empty list removes the name (the last mistake of a point was deleted).
+      if (list.length) out[name] = list;
+      else delete out[name];
     }
     return Object.keys(out).length <= MAX_SCORES ? out : undefined;
   }

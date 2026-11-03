@@ -38,7 +38,7 @@ const store = {
 const progress = { sync: false, merge: {}, pending: null, sending: false };
 // Chatbot answers pasted into the site can be long, so they stay in this browser — but they still
 // belong to the account, so they go with it on log out or when someone else logs in here.
-const LOCAL_PROGRESS = ["aiFeedback", "aiAnswers"];
+const LOCAL_PROGRESS = ["aiFeedback", "aiAnswers", "mistakesRead"];
 
 function queueProgress(patch) {
   progress.pending = Object.assign(progress.pending || {}, patch);
@@ -82,7 +82,7 @@ addEventListener("pagehide", () => {
       for (const [n, score] of Object.entries(here)) {
         if (score > (v[n] ?? -1)) { v[n] = score; upload[k] = here; }
       }
-    } else if (here !== undefined && how === "texts") {
+    } else if (here !== undefined && (how === "texts" || how === "notes")) {
       // Only entries the server doesn't have yet go up: it keeps the latest of each.
       v = { ...there };
       for (const [n, t] of Object.entries(here)) {

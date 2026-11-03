@@ -23,7 +23,9 @@ function promptStyle(l, furi) {
 - ${furi ? "Write furigana in brackets after kanji, like 学生(がくせい)." : "Write kanji normally, without furigana."} Don't use romaji.
 - Make it visual. Break Japanese sentences into blocks and mark each block's job with the colours my study site uses: 🟦 topic (は), 🟥 subject (が), 🟩 object (を), 🟧 target / point (に), 🟪 verb or predicate (always last). Name any other job in words, e.g. [time], [place で].
   Example: ${ex}
-- Keep explanations short. Use tables, arrows and text diagrams where they help.`;
+- Put each line of blocks on its own line, with the English on the next line.
+- Keep explanations short: short paragraphs, "- " lists and simple tables, with no blocks inside a table.
+- I paste your answers into my study site, which redraws them, so keep the formatting simple: no code blocks, and no diagrams lined up with spaces or arrows.`;
 }
 
 // Each preset: what the chip says, a one-line description, and the task given to the chatbot.
@@ -50,18 +52,32 @@ My question: ` },
 - Then ask me one question to check I understood, and wait for my answer.` },
 
   { id: "examples", label: "More examples", desc: "12 new sentences from easy to harder, each broken into blocks.",
-    task: ({ f }) => `Give me 12 new example sentences using ${f}: 4 easy, 4 medium and 4 a bit harder, set in different everyday situations (home, work, shopping, travel, friends…). For each sentence show the blocks, the English translation, and a short note on what's new compared to the sentence before. Put each level in its own table.` },
+    task: ({ f }) => `Give me 12 new example sentences using ${f}: 4 easy, 4 medium and 4 a bit harder, set in different everyday situations (home, work, shopping, travel, friends…). For each sentence show the blocks, the English translation, and a short note on what's new compared to the sentence before. Put each level under its own heading.` },
 
   { id: "quiz", label: "Quiz me", desc: "One question at a time, with feedback after each answer and a score at the end.",
     task: ({ f }) => `Quiz me on ${f}. Ask one question at a time and wait for my answer before going on — never show the answer early. Mix the kinds of question: fill the gap, pick the right particle or form, translate English → Japanese, translate Japanese → English, and spot the mistake. After each answer, tell me if I'm right and explain briefly with blocks. After 10 questions, give me my score and tell me what to review.` },
 
   { id: "check", label: "Check my sentences", desc: "Write your own sentences at the end of the prompt and get them corrected.", typeAtEnd: true,
-    task: ({ f }) => `I'll write my own sentences using ${f}. For each one:
-- Start with one line: its number, my sentence exactly as I wrote it, then ✓ if it's correct or ✗ if not (e.g. "2. 私は学生です ✗").
-- If not, give the corrected sentence on its own line starting with "Correct:", then explain the fix with blocks.
-- Suggest a more natural way to say it, if there is one, on a line starting with "Natural:".
-- List new words on one line like "Words: 漫画 = manga, とても = very".
-Be encouraging but honest — don't let mistakes slide. I'll paste your answer into my study site, so keep this layout.
+    task: ({ f, furi }) => `I'll write my own sentences using ${f}. Check each one and answer in exactly this layout, with a line of --- between sentences:
+
+2. ${promptJa("私[わたし]は学生[がくせい]をです", furi)} ✗
+Correct: ${promptJa("私[わたし]は学生[がくせい]です", furi)}。
+(I am a student.)
+🟦 ${promptJa("私[わたし]は", furi)} | 🟪 ${promptJa("学生[がくせい]です", furi)}
+Why: を marks an object, and です doesn't take one.
+Natural: ${promptJa("学生[がくせい]です", furi)}。
+(No need to say "I" when it's clear.)
+Words: ${promptJa("学生[がくせい]", furi)} = student
+
+Rules for the layout:
+- The first line is only the number, my sentence exactly as I wrote it, and ✓ if it's correct or ✗ if not.
+- Use the labels Correct:, Why:, Natural: and Words: word for word, each at the start of its own line. Don't replace them with ✅ or anything else.
+- The Correct: and Natural: lines hold only the Japanese sentence, with its English or any note in brackets on the next line.
+- If the sentence is correct, leave out Correct: and start with the blocks.
+- Leave out Natural: if there's no better way to say it.
+- More than one thing to explain? Add "- " points under Why:.
+- Stop right after the last sentence. Don't end with a conclusion, a summary or a question for me.
+Be encouraging but honest — don't let mistakes slide.
 
 My sentences:
 1. ` },
@@ -85,7 +101,7 @@ Finish with 5 "which one is right?" questions, with the answers at the very bott
 - Japanese sentence with one gap → the missing word and the full sentence
 - English sentence → Japanese sentence
 - Japanese sentence → English meaning and which grammar point it uses
-Put all the cards in one code block, one card per line, as front;back — no header, no emoji blocks, and no semicolons inside a card — so I can import it into Anki (File → Import, separator: semicolon).${furi
+This is the one time to use a code block: put all the cards in one, one card per line, as front;back — no header, no emoji blocks, and no semicolons inside a card — so I can import it into Anki (File → Import, separator: semicolon).${furi
   ? "\nIn the cards, write furigana in Anki's format instead: a space before each kanji word and the reading in square brackets, like 私[わたし]は 学生[がくせい]です。"
   : ""}` },
 ];
