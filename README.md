@@ -8,7 +8,12 @@ three sentences of their own with each grammar point for extra XP; the site chec
 (Japanese, not copied, the pattern spotted where it can tell) and builds a prompt to get them
 corrected by any chatbot. Pasting the chatbot's answer back redraws it with the site's colour
 blocks, and every sentence it marks wrong goes to a "Your mistakes" list on the lesson page,
-next to its correction, and comes back as a question until it's answered right twice.
+next to its correction, and comes back as a question until it's answered right twice. The daily
+roulettes test what you've already finished (a star on a point's check, or its lesson's test
+passed): Review (one random point), Lesson (one random lesson's full test), Mixed (questions from
+many points) and Weak spot (your uncorrected mistakes, or your lowest-starred point). Each pays a
+bonus on its first clear of the day and can be run again for normal XP, and the date flags one of
+them for extra XP.
 
 The whole site is **private**. Visitors without a login only see a login page. From there they
 can pick a username and password and send an access request, which you approve by hand — or
@@ -42,7 +47,7 @@ data goes to Google. Accounts, invites and sessions are saved in `data/access.js
 committed — older copies of that file are upgraded automatically.
 
 Lesson progress (test scores, stars, XP, best streak, the last lesson opened, the sentences a
-member wrote and their corrected mistakes) is saved per
+member wrote, their corrected mistakes and the daily roulettes) is saved per
 account in `data/progress.json`, so it follows a member to every browser they log in on.
 Progress made in a browser before logins existed moves into the first account that logs in
 there. **Remove** deletes it along with the login.

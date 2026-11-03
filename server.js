@@ -437,7 +437,7 @@ function touch(id) {
 // The page gets this list too (in progress.js), so adding a key here is all it takes.
 const PROGRESS_MERGE = {
   lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest", sentences: "texts",
-  mistakes: "notes",
+  mistakes: "notes", roulette: "latest",
 };
 const MAX_PROGRESS_BODY = 512 * 1024;
 const MAX_LATEST = 2 * 1024;

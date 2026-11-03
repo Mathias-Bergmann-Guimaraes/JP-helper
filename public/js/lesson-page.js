@@ -28,6 +28,7 @@ function renderLessons() {
       lesson. Every right answer earns XP.</p>
       ${hudHTML()}
     </div>
+    <div class="card lquiz rl" id="roulette"></div>
     <div class="lessons-layout">
       <nav class="card lpath" aria-label="Lessons">
         <div class="book-label">Book I · <span lang="ja">初級 Ⅰ</span></div>
@@ -40,6 +41,7 @@ function renderLessons() {
   $$("#lessons [data-l]").forEach((b) => (b.onclick = () => showLesson(+b.dataset.l, true)));
   renderHud();
   showLesson(lessonState.n);
+  renderRoulette();
 }
 
 function linkLabel(link) {
@@ -322,6 +324,15 @@ function askIn(box, q, done) {
   }));
 }
 
+const missedHTML = (t) => {
+  const missed = t.qs.filter((_, j) => !t.results[j]);
+  return missed.length ? `
+    <div class="lt-review">
+      <div class="small muted">Correct answers to the ones you missed</div>
+      <ul>${missed.map((q) => `<li>${q.review}</li>`).join("")}</ul>
+    </div>` : "";
+};
+
 const progressDots = (t) => t.qs.map((_, j) => {
   const r = t.results[j];
   return `<span class="lt-dot${r === undefined ? (j === t.i ? " now" : "") : r ? " ok" : " bad"}"></span>`;
@@ -419,19 +430,24 @@ function runTest(l, t) {
   };
 }
 
-function finishTest(l, t) {
-  const score = t.results.filter(Boolean).length;
-  const passed = score >= PASS_MARK;
-  const wasPassed = lessonPassed(l.n);
+// A lesson keeps its best test score.
+function saveTestScore(l, score) {
   if (score > (lessonState.tests[l.n] ?? -1)) {
     lessonState.tests[l.n] = score;
     store.set("lessonTests", lessonState.tests);
   }
+}
+
+function finishTest(l, t) {
+  const score = t.results.filter(Boolean).length;
+  const passed = score >= PASS_MARK;
+  const wasPassed = lessonPassed(l.n);
+  saveTestScore(l, score);
   renderLessonStatus(l);
   updateLessonPath();
+  refreshRoulette();
 
   const next = LESSONS.find((x) => x.n === l.n + 1);
-  const missed = t.qs.filter((_, j) => !t.results[j]);
   const bonus = passed ? (wasPassed ? XP.repass : XP.pass) : 0;
   $("#lTest").innerHTML = `
     <div class="lt-result ${passed ? "pass" : "fail"}">
@@ -444,11 +460,7 @@ function finishTest(l, t) {
           : `You need ${PASS_MARK} to pass. Practise the sentences above a little more, then try again — the questions change every time.`}</p>
       </div>
     </div>
-    ${missed.length ? `
-      <div class="lt-review">
-        <div class="small muted">Correct answers to the ones you missed</div>
-        <ul>${missed.map((q) => `<li>${q.review}</li>`).join("")}</ul>
-      </div>` : ""}
+    ${missedHTML(t)}
     <div class="q-actions lt-actions">
       <button class="btn" id="ltRetry">Try again</button>
       ${passed && next ? `<button class="btn primary" id="ltNextLesson">Lesson ${next.n}: ${next.title} ›</button>` : ""}
@@ -532,17 +544,24 @@ function runCheck(l, i, t) {
 
 const CHECK_WORDS = ["Keep going — try it again!", "One star — getting there.", "Two stars — nearly perfect!", "Three stars — perfect!"];
 
-function finishCheck(l, i, t) {
-  const score = t.results.filter(Boolean).length;
-  const stars = score >= 5 ? 3 : score === 4 ? 2 : score === 3 ? 1 : 0;
+const starsFor = (score) => (score >= 5 ? 3 : score === 4 ? 2 : score === 3 ? 1 : 0);
+
+// A point keeps its best result. Returns what this score earned and how many stars are new.
+function saveCheckStars(l, i, score) {
+  const stars = starsFor(score);
   const old = pointStars(l.n, i);
   const gained = Math.max(stars - old, 0);
   if (gained) {
     lessonState.stars[`${l.n}.${i}`] = stars;
     store.set("pointStars", lessonState.stars);
   }
+  return { stars, old, gained };
+}
+
+function finishCheck(l, i, t) {
+  const score = t.results.filter(Boolean).length;
+  const { stars, old, gained } = saveCheckStars(l, i, score);
   const nextPoint = l.points.findIndex((_, j) => j > i && pointStars(l.n, j) < 3);
-  const missed = t.qs.filter((_, j) => !t.results[j]);
   const box = $(`#lp-${i} .lp-check`);
   box.innerHTML = `
     <div class="lc-result">
@@ -552,11 +571,7 @@ function finishCheck(l, i, t) {
         <p>${CHECK_WORDS[stars]}${old > stars ? ` <span class="muted">(Your best is still ${old} ★.)</span>` : ""}</p>
       </div>
     </div>
-    ${missed.length ? `
-      <div class="lt-review">
-        <div class="small muted">Correct answers to the ones you missed</div>
-        <ul>${missed.map((q) => `<li>${q.review}</li>`).join("")}</ul>
-      </div>` : ""}
+    ${missedHTML(t)}
     <div class="q-actions lt-actions">
       <button class="btn" data-a="again">Try again</button>
       ${nextPoint >= 0
@@ -572,6 +587,7 @@ function finishCheck(l, i, t) {
   $$(".lc-stars .star.on", box).forEach((s, j) => s.style.setProperty("--d", `${j * 0.18}s`));
   renderLessonStatus(l);
   updateLessonPath();
+  refreshRoulette();
   if (gained) addXP(gained * XP.star, $(".lc-stars", box));
   if (stars === 3) burst($(".lc-stars", box));
 }

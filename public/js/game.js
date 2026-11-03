@@ -3,7 +3,7 @@
 
 /* ---------------------------------------------------------------- State */
 
-const DAILY_GOAL = 30;
+const DAILY_GOAL = 60;
 const RANKS = [
   [1, "見習い", "Apprentice"],
   [3, "学生", "Student"],

@@ -22,7 +22,8 @@ const lessonMistakes = (l) => l.points.flatMap((_, i) => (mistakes[`${l.n}.${i}`
 
 function saveMistakes(l) {
   store.set("mistakes", mistakes);
-  if (!mistakeRound.on) renderMistakes(l);
+  // A daily roulette question can belong to a lesson other than the one on screen.
+  if (!mistakeRound.on && l.n === lessonState.n) renderMistakes(l);
 }
 
 /* ---------------------------------------------------------------- Saving them from an answer */
