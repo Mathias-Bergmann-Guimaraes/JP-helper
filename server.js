@@ -554,9 +554,12 @@ const USAGE_GROUPS = {
   },
   Roulettes: {
     "roulette.review": "Review started", "roulette.lesson": "Lesson started", "roulette.mixed": "Mixed started",
-    "roulette.weak": "Weak spot started", "roulette.done": "Roulettes finished",
+    "roulette.weak": "Weak spot started", "roulette.build": "Build started", "roulette.forms": "Forms started", "roulette.done": "Roulettes finished",
   },
-  "Practice tab": { "quiz.particles": "Particle questions answered", "quiz.verbs": "Verb form questions answered", "quiz.patterns": "Pattern questions answered" },
+  "Practice tab": {
+    "practice.roulette": "Roulettes opened", "practice.write": "Guided writing rounds started", "practice.build": "Build opened", "practice.quiz": "Quick quiz opened",
+    "quiz.particles": "Particle questions answered", "quiz.verbs": "Verb form questions answered", "quiz.adjectives": "Adjective questions answered", "quiz.patterns": "Pattern questions answered",
+  },
   "Reference pages": {
     "explore.sentences": "Example sentences browsed", "explore.particles": "Particles opened", "explore.verbs": "Verbs or forms switched",
     "explore.adjectives": "Adjectives switched", "explore.patterns": "Pattern verbs switched",

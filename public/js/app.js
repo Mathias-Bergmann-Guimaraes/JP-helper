@@ -38,7 +38,7 @@ const store = {
 const progress = { sync: false, merge: {}, pending: null, sending: false };
 // Chatbot answers pasted into the site can be long, so they stay in this browser — but they still
 // belong to the account, so they go with it on log out or when someone else logs in here.
-const LOCAL_PROGRESS = ["aiFeedback", "aiAnswers", "mistakesRead"];
+const LOCAL_PROGRESS = ["aiFeedback", "aiAnswers", "mistakesRead", "writeLog"];
 
 function queueProgress(patch) {
   progress.pending = Object.assign(progress.pending || {}, patch);
@@ -159,7 +159,11 @@ function showTab(id) {
   // Mistakes are added and learned on other pages, so this one is drawn as it opens.
   if (id === "mistakes") renderMistakesPage();
   // Stats change on every other page, and aren't kept up to date while Home is hidden.
-  if (id === "home") renderStats();
+  if (id === "home") {
+    placeRoulette($("#homeRoulette"));
+    renderStats();
+  }
+  if (id === "practice") showPractice();
 }
 
 /* ---------------------------------------------------------------- Account */
@@ -929,55 +933,18 @@ function updatePatternVerb() {
 
 /* ---------------------------------------------------------------- Practice */
 
-const quiz = { mode: "particles", q: null, answered: false, score: 0, total: 0, streak: 0, best: store.get("best", 0), last: null, deck: null };
-
-function renderPractice() {
-  $("#practice").innerHTML = `
-    <div class="card hero">
-      <h1>Practice</h1>
-      <p>Short rounds, instant feedback. Every answer shows the picture behind the rule.</p>
-      <div class="seg" id="quizMode">
-        <button data-m="particles">Particles</button>
-        <button data-m="verbs">Verb forms</button>
-        <button data-m="patterns">Patterns</button>
-      </div>
-    </div>
-    <div class="card quiz">
-      <div class="scorebar">
-        <span>Score <b id="qScore">0 / 0</b></span>
-        <span>Streak <b id="qStreak">0</b></span>
-        <span>Best streak <b id="qBest">${quiz.best}</b></span>
-      </div>
-      <div id="qPrompt" class="q-prompt"></div>
-      <div id="qOpts" class="q-opts"></div>
-      <div id="qFeedback" class="q-feedback"></div>
-      <div class="q-actions"><button class="btn primary" id="qNext">Next question →</button></div>
-    </div>`;
-  $$("#quizMode button").forEach((b) => (b.onclick = () => { quiz.mode = b.dataset.m; nextQuestion(); }));
-  $("#qNext").onclick = nextQuestion;
-  nextQuestion();
-}
-
-function nextQuestion() {
-  $$("#quizMode button").forEach((b) => b.classList.toggle("active", b.dataset.m === quiz.mode));
-  quiz.answered = false;
-  quiz.q = { particles: makeParticleQ, verbs: makeVerbQ, patterns: makePatternQ }[quiz.mode]();
-  $("#qPrompt").innerHTML = quiz.q.prompt;
-  $("#qOpts").innerHTML = quiz.q.options
-    .map((o, i) => `<button class="q-opt" data-i="${i}" lang="ja">${o.html}</button>`).join("");
-  $("#qFeedback").innerHTML = "";
-  $("#qNext").hidden = true;
-  $$("#qOpts .q-opt").forEach((b) => (b.onclick = () => answer(+b.dataset.i)));
-}
+// The questions the Practice tab's quick quiz and the lessons share. The tab itself is in
+// practice-page.js. focus: one thing to ask about, or "" for everything.
+const quiz = { mode: "particles", focus: "", q: null, score: 0, total: 0, streak: 0, best: store.get("best", 0), last: null, deck: null };
 
 // A question's English stays folded behind a button until asked for, or until the question is answered.
 const hintEn = (text) => `<details class="q-hint"><summary>Show translation</summary><div class="q-en">${text}</div></details>`;
 const openHints = (box) => $$(".q-hint", box).forEach((d) => (d.open = true));
 
-function makeParticleQ() {
+function makeParticleQ(focus) {
   // Deal from a shuffled deck so every question comes up once before any repeats.
   if (!quiz.deck || !quiz.deck.length) {
-    quiz.deck = shuffle(PARTICLE_QUIZ.slice());
+    quiz.deck = shuffle(PARTICLE_QUIZ.filter((q) => !focus || q.a === focus));
     if (quiz.deck[quiz.deck.length - 1] === quiz.last) quiz.deck.unshift(quiz.deck.pop());
   }
   const q = quiz.deck.pop();
@@ -1094,34 +1061,6 @@ function makePatternQ(patId) {
   };
 }
 
-function answer(i) {
-  if (quiz.answered) return;
-  quiz.answered = true;
-  track("quiz." + quiz.mode);
-  const q = quiz.q;
-  const ok = q.options[i].correct;
-  quiz.total++;
-  if (ok) {
-    quiz.score++;
-    quiz.streak++;
-    if (quiz.streak > quiz.best) { quiz.best = quiz.streak; store.set("best", quiz.best); }
-  } else {
-    quiz.streak = 0;
-  }
-  $$("#qOpts .q-opt").forEach((b, j) => {
-    b.disabled = true;
-    if (q.options[j].correct) b.classList.add("right");
-    else if (j === i) b.classList.add("wrong");
-  });
-  q.reveal();
-  openHints($("#qPrompt"));
-  $("#qFeedback").innerHTML = `<div class="verdict ${ok ? "ok" : "bad"}">${ok ? "Correct!" : "Not quite."}</div>${q.feedback(q.options[i])}`;
-  $("#qScore").textContent = `${quiz.score} / ${quiz.total}`;
-  $("#qStreak").textContent = quiz.streak;
-  $("#qBest").textContent = quiz.best;
-  $("#qNext").hidden = false;
-  $("#qNext").focus({ preventScroll: true });
-}
 
 /* ---------------------------------------------------------------- Theme */
 
@@ -1168,7 +1107,6 @@ function init() {
   renderVerbs();
   renderAdjectives();
   renderPatterns();
-  renderPractice();
 
   // Sticky elements sit just below the top bar, whose height changes when it wraps.
   const setBarHeight = () => document.documentElement.style.setProperty("--topbar-h", $(".topbar").offsetHeight + "px");
@@ -1180,6 +1118,7 @@ function init() {
 
   renderHome();
   renderLessons();
+  renderPractice();
   showTab(location.hash.slice(1));
   setupAccount();
 }

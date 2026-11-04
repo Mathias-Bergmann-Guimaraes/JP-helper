@@ -1,7 +1,7 @@
 # Bunpō — Visual Japanese Grammar
 
 A visual Japanese grammar site: colour-coded sentence blocks, particles, verb conjugation,
-adjectives, verb patterns and a practice page — plus a 50-lesson course with practice
+adjectives, verb patterns and a Practice tab — plus a 50-lesson course with practice
 sentences, a 5-question check (worth up to three stars) for every grammar point and a test for
 every lesson. Right answers earn XP towards levels and a daily streak. Learners can also write
 three sentences of their own with each grammar point for extra XP; the site checks the basics
@@ -10,11 +10,12 @@ corrected by any chatbot. Pasting the chatbot's answer back redraws it with the 
 blocks, and every sentence it marks wrong goes to a "Your mistakes" list on the lesson page,
 next to its correction, and comes back as a question until it's answered right twice. The
 **Mistakes** tab shows those lists from every lesson together and can practise them across lessons. The daily
-roulettes test what you've already finished (a star on a point's check, or its lesson's test
-passed): Review (one random point), Lesson (one random lesson's full test), Mixed (questions from
-many points) and Weak spot (your uncorrected mistakes, or your lowest-starred point). Each pays a
+roulettes, on the Home and Practice tabs, test what you've already finished (a star on a point's
+check, or its lesson's test passed): Review (one random point), Lesson (one random lesson's full
+test), Mixed (questions from many points), Weak spot (your uncorrected mistakes, or your
+lowest-starred point), Build (five block sentences) and Forms (verb forms and patterns). Each pays a
 bonus on its first clear of the day and can be run again for normal XP, and the date flags one of
-them for extra XP.
+them for extra XP. It's the same card on both tabs, so a run under way carries on from one to the other.
 
 Spaced review brings each finished grammar point back after 1, 3, 7, 21 and then every 60 days, in
 a "Due today" card on the Home tab, beside your current lesson and above the roulettes, with two mixed questions per point. All right moves a point
@@ -37,7 +38,26 @@ most usual. The sentences live in `public/js/builds.js`, where `~` marks the blo
 wordings, in kanji or kana, are right straight away. Anything else waits, and when you've finished
 (or choose to check sooner) all of those go to your own chatbot in one copied prompt. Pasting its
 answer back scores them and saves any corrections to "Your mistakes". The site itself sends nothing
-to an AI service.
+to an AI service. Free text has hints, one at a time: the grammar to use, the words you'll need, and
+the colour order of the blocks, which the block mode can show too. Block mode can also hide the
+colours, for when they give too much away.
+
+The **Practice** tab brings it together, with four parts to pick from:
+
+- **Roulettes:** the daily board above.
+- **Write:** sentences of your own, in rounds of 3, 5 or 8, guided by one of: a direct translation,
+  a pattern to use, a general theme, a word bank, a situation, a question in Japanese to answer, a
+  sentence to finish, two patterns at once, or a mix of them all. Each task has hints, and **Give me
+  another** swaps a task you don't like. A lesson, all lessons up to it or one grammar point decides
+  what comes up, and tasks stay within what you've reached. The site marks the translations it
+  knows and warns about what it can notice (a required word it can't spot, a sentence copied from
+  the lesson). Everything else goes to your own chatbot in one prompt, as in free text, with each
+  sentence's task, and corrections are saved under the grammar point the task exercises. Your last
+  30 sentences are kept in this browser. The tasks live in `public/js/write-prompts.js`.
+- **Build:** the sentence builder, for one lesson, all lessons up to it or a single grammar point.
+- **Quick quiz:** non-stop questions on particles, verb forms, adjectives and patterns, or all of
+  them mixed, each with an optional focus (just に, just the て-form…). Right answers earn XP, and
+  the number keys 1–4 answer.
 
 The whole site is **private**. Visitors without a login only see a login page. From there they
 can pick a username and password and send an access request, which you approve by hand — or

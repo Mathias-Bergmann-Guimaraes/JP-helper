@@ -61,6 +61,7 @@ function addXP(n, from) {
   if (from) floatXP(from, n);
   renderHud();
   renderStats();
+  renderPracticeTiles();
   const after = levelOf(game.xp).lv;
   if (after > before) {
     const [, jp, en] = rankOf(after);

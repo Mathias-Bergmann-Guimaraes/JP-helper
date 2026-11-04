@@ -1,6 +1,6 @@
-// The daily roulettes on the Home tab: a board of four kinds of test on grammar you've already
-// finished. Each pays a bonus the first time it's cleared each day and can be run again for
-// normal XP. Loaded after lesson-mistakes.js and uses its helpers.
+// The daily roulettes: a board of six kinds of test on grammar you've already finished, on the Home
+// and Practice tabs. Each pays a bonus the first time it's cleared each day and can be run again
+// for normal XP. Loaded after lesson-mistakes.js and uses its helpers.
 
 // day: the day `runs` is for. runs: { [roulette]: { pick: what it landed on and is waiting to be
 // run, clears: times cleared that day, score, of: the day's best result } }. recent and
@@ -15,6 +15,8 @@ const RECENT_LESSONS = 15;
 const MIX_LEN = 10;
 const MIX_MIN_POINTS = 3;
 const WEAK_LEN = 5;
+const BUILD_LEN = 5;
+const FORMS_LEN = 8;
 const NEEDED_XP = 10; // extra on the roulette flagged today
 const REEL_ROWS = 28;
 const REEL_MS = 2600; // matches .rl-track in style.css
@@ -38,6 +40,8 @@ const finishedPoints = () => LESSONS.flatMap((l) =>
 const finishedLessons = () => LESSONS.filter((l) => lessonPassed(l.n));
 const openMistakes = () => LESSONS.flatMap((l) =>
   lessonMistakes(l).filter((x) => !isLearned(x.m)).map((x) => ({ l, ...x })));
+const finishedBuilds = () => finishedPoints().flatMap(({ l, i }) => lessonBuilds(l).filter((b) => b.i === i));
+const finishedForms = () => finishedPoints().map(({ l, i }) => l.points[i].link).filter(isFormLink);
 
 // Any of them, except those it landed on lately. At most half are held back, so there's always
 // a real choice left.
@@ -80,6 +84,16 @@ const ROULETTES = [
     locked: () => (finishedPoints().length || openMistakes().length ? "" : "Finish a grammar point to unlock this."),
     choose: () => (openMistakes().length ? "mistakes" : pointKey(weakestPoint())),
   },
+  {
+    id: "build", icon: "🧩", name: "Build", about: "Colour blocks into Japanese order, from what you've finished.", len: BUILD_LEN, unit: "sentences", bonus: 20, each: XP.build,
+    locked: () => (finishedBuilds().length ? "" : "Finish a grammar point to unlock this."),
+    choose: () => "build",
+  },
+  {
+    id: "forms", icon: "🔧", name: "Forms", about: "Verb forms and patterns from the points you've finished.", len: FORMS_LEN, bonus: 20, each: XP.check,
+    locked: () => (finishedForms().length ? "" : "Finish a point on a verb form or pattern to unlock this."),
+    choose: () => "forms",
+  },
 ];
 
 const openRoulettes = () => ROULETTES.filter((r) => !r.locked());
@@ -98,6 +112,12 @@ function targetOf(r, key) {
   }
   if (key === "mistakes") {
     return { kind: "mistakes", label: "Your own mistakes", color: "var(--accent)", sub: "Sentences your chatbot corrected, topped up from your weakest point if there are too few." };
+  }
+  if (key === "build") {
+    return { kind: "build", label: `${BUILD_LEN} sentences to build`, color: "var(--accent)", sub: `From the ${finishedBuilds().length} sentences of the points you've finished.` };
+  }
+  if (key === "forms") {
+    return { kind: "forms", label: `${FORMS_LEN} forms to build`, color: "var(--accent)", sub: "From the verb forms and patterns you've finished." };
   }
   if (r.id === "lesson") {
     const l = LESSONS.find((x) => x.n === +key);
@@ -145,6 +165,15 @@ function buildMistakeRun() {
 function questionsFor(target) {
   if (target.kind === "point") return buildCheck(target.l, target.i);
   if (target.kind === "lesson") return buildTest(target.l);
+  if (target.kind === "build") {
+    return shuffle(finishedBuilds()).slice(0, BUILD_LEN).map((b) => ({
+      b, review: `<span lang="ja" style="--c:${ROLES[b.point.role].color}">${builtSentence(b)}</span><span class="muted">${b.en}</span>`,
+    }));
+  }
+  if (target.kind === "forms") {
+    const forms = finishedForms();
+    return Array.from({ length: FORMS_LEN }, () => formQ(pick(forms)));
+  }
   return target.kind === "mix" ? buildMixed() : buildMistakeRun();
 }
 
@@ -168,6 +197,7 @@ function renderRoulette() {
     if (target) startRun(r, target);
     else spinRoulette(r);
   }));
+  renderPracticeTiles();
 }
 
 function tileHTML(r, needed) {
@@ -191,9 +221,15 @@ function tileHTML(r, needed) {
         ${lock ? "" : run.clears ? `<span class="small muted">no bonus now</span>` : `<span class="xp-chip">+${r.bonus + (needed ? NEEDED_XP : 0)} XP</span>`}
       </div>
       ${needed && !lock && !run.clears ? `<div class="rl-needed small">★ Bonus today: +${NEEDED_XP} XP extra</div>` : ""}
-      <p class="small muted">${r.about} ${r.len} questions.</p>
+      <p class="small muted">${r.about} ${r.len} ${r.unit || "questions"}.</p>
       ${foot}
     </div>`;
+}
+
+// One card, whichever tab it's on: it moves with you, so a run under way carries on.
+function placeRoulette(slot) {
+  const card = $("#roulette");
+  if (card && slot && card.parentElement !== slot) slot.append(card);
 }
 
 // After a check or test: more may have unlocked, and the counts go up.
@@ -230,7 +266,7 @@ function drawPanel(r, reel, body, below = "") {
 
 function remember(r, key) {
   if (r.id === "lesson") spin.recentLessons = [key, ...spin.recentLessons.filter((k) => k !== key)].slice(0, RECENT_LESSONS);
-  else if (key !== "mix" && key !== "mistakes") spin.recent = [key, ...spin.recent.filter((k) => k !== key)].slice(0, RECENT_POINTS);
+  else if (!["mix", "mistakes", "build", "forms"].includes(key)) spin.recent = [key, ...spin.recent.filter((k) => k !== key)].slice(0, RECENT_POINTS);
 }
 
 function spinRoulette(r) {
@@ -270,7 +306,7 @@ function drawPicked(r, target) {
   drawPanel(r, landedReel(target), `
     ${targetHead(target)}
     <div class="rl-actions">
-      <button class="btn primary" id="rlStart">Start the ${r.len} questions →</button>
+      <button class="btn primary" id="rlStart">Start the ${r.len} ${r.unit || "questions"} →</button>
       <button class="btn" id="rlBack">Back to the board</button>
     </div>`);
   $("#rlStart").onclick = () => startRun(r, target);
@@ -290,8 +326,38 @@ function startRun(r, target) {
   track("roulette." + r.id);
   rouletteUI.busy = true;
   rouletteUI.view = r.id;
-  runQuiz(r, target, { qs, i: 0, results: [] });
+  if (target.kind === "build") runBuilds(r, target, { qs, i: 0, results: [] });
+  else runQuiz(r, target, { qs, i: 0, results: [] });
   scrollBelowBar($("#roulette"));
+}
+
+// The Build roulette: a sentence builder for each sentence, in blocks. It pays its own XP.
+function runBuilds(r, target, t) {
+  const box = $("#roulette");
+  box.innerHTML = `
+    <div class="lt-top">
+      <span class="small"><b>${r.name} · sentence ${t.i + 1}</b> of ${t.qs.length}</span>
+      <div class="lt-dots">${progressDots(t)}</div>
+      <button class="icon-btn lp-close" aria-label="Stop for now">✕</button>
+    </div>
+    <div class="rl-build"></div>`;
+  $(".lp-close", box).onclick = backToBoard;
+  const { b } = t.qs[t.i];
+  newBuilder($(".rl-build", box), {
+    l: b.l, mode: "blocks", bare: true, source: () => [b],
+    nextLabel: t.i + 1 < t.qs.length ? "Next sentence →" : "See my result →",
+    onCount: (ok) => {
+      t.results[t.i] = ok;
+      $(".lt-dots", box).innerHTML = progressDots(t);
+    },
+    onNext: () => {
+      t.i++;
+      if (t.i < t.qs.length) runBuilds(r, target, t);
+      else finishRun(r, target, t);
+      scrollIfAbove(box);
+    },
+  });
+  nextBuild();
 }
 
 function runQuiz(r, target, t) {
@@ -328,6 +394,8 @@ function resultWords(target, score, of) {
   if (target.kind === "point") return score < 3 ? "Not this time, so this one can land again soon." : CHECK_WORDS[starsFor(score)];
   if (target.kind === "lesson") return score >= PASS_MARK ? "Passed again!" : "Below the pass mark, so this lesson can land again soon. It stays finished.";
   if (target.kind === "mistakes") return "A mistake you pick right twice counts as learned.";
+  if (target.kind === "build") return score / of >= 0.8 ? "Word order: you've got it." : "The verb block comes last, and the particles say what each block does.";
+  if (target.kind === "forms") return score / of >= 0.8 ? "Those forms are sticking." : "The Verbs and Patterns pages show how each form is built.";
   return score / of >= 0.8 ? "You spotted the grammar without being told which it was." : "These are the hard ones: nothing tells you which grammar it is.";
 }
 

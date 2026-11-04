@@ -14,7 +14,7 @@ const HOME_PAGES = [
   { tab: "verbs", ja: "動", name: "Verbs", about: "Verb groups and every form, for any verb." },
   { tab: "adjectives", ja: "形", name: "Adjectives", about: "い and な adjectives, side by side." },
   { tab: "patterns", ja: "型", name: "Patterns", about: "Common verb patterns and what they mean." },
-  { tab: "practice", ja: "練", name: "Practice", about: "Free quizzes on particles, verbs and more." },
+  { tab: "practice", ja: "練", name: "Practice", about: "Roulettes, guided writing, block building and quick quizzes." },
   { tab: "mistakes", ja: "直", name: "Mistakes", about: "Every sentence your chatbot corrected, in one place." },
 ];
 
@@ -29,7 +29,7 @@ function renderHome() {
       <div class="card home-continue" id="homeContinue"></div>
       <div class="card lquiz rl" id="review"></div>
     </div>
-    <div class="card lquiz rl" id="roulette"></div>
+    <div id="homeRoulette"><div class="card lquiz rl" id="roulette"></div></div>
     <div class="card ps" id="stats"></div>
     <div class="card home-pages">
       <div class="rl-head"><span class="rl-kicker">🧭 Explore</span></div>
