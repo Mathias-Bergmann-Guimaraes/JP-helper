@@ -15,6 +15,13 @@ many points) and Weak spot (your uncorrected mistakes, or your lowest-starred po
 bonus on its first clear of the day and can be run again for normal XP, and the date flags one of
 them for extra XP.
 
+Spaced review brings each finished grammar point back after 1, 3, 7, 21 and then every 60 days, in
+a "Due today" card above the roulettes, with two mixed questions per point. All right moves a point
+up a step, one wrong moves it down a step, and none right starts it over. A day's review stops at 10
+points, most overdue first; **Study more** carries on 5 points at a time past that, and when nothing
+is due you can review the next ones early, which doesn't push their dates back unless you slip.
+Missed days lose nothing, and doing a due point's 5-question check counts as its review.
+
 The whole site is **private**. Visitors without a login only see a login page. From there they
 can pick a username and password and send an access request, which you approve by hand — or
 use a single-use invite code you gave them, which lets them in straight away. After that they
@@ -47,7 +54,7 @@ data goes to Google. Accounts, invites and sessions are saved in `data/access.js
 committed — older copies of that file are upgraded automatically.
 
 Lesson progress (test scores, stars, XP, best streak, the last lesson opened, the sentences a
-member wrote, their corrected mistakes and the daily roulettes) is saved per
+member wrote, their corrected mistakes, the daily roulettes and the review schedule) is saved per
 account in `data/progress.json`, so it follows a member to every browser they log in on.
 Progress made in a browser before logins existed moves into the first account that logs in
 there. **Remove** deletes it along with the login.

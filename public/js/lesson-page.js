@@ -28,6 +28,7 @@ function renderLessons() {
       lesson. Every right answer earns XP.</p>
       ${hudHTML()}
     </div>
+    <div class="card lquiz rl" id="review"></div>
     <div class="card lquiz rl" id="roulette"></div>
     <div class="lessons-layout">
       <nav class="card lpath" aria-label="Lessons">
@@ -41,6 +42,7 @@ function renderLessons() {
   $$("#lessons [data-l]").forEach((b) => (b.onclick = () => showLesson(+b.dataset.l, true)));
   renderHud();
   showLesson(lessonState.n);
+  renderReview();
   renderRoulette();
 }
 
@@ -555,6 +557,7 @@ function saveCheckStars(l, i, score) {
     lessonState.stars[`${l.n}.${i}`] = stars;
     store.set("pointStars", lessonState.stars);
   }
+  reviewFromCheck(l, i, score);
   return { stars, old, gained };
 }
 

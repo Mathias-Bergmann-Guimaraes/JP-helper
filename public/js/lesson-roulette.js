@@ -197,7 +197,10 @@ function tileHTML(r, needed) {
 }
 
 // After a check or test: more may have unlocked, and the counts go up.
-const refreshRoulette = () => renderRoulette();
+const refreshRoulette = () => {
+  renderRoulette();
+  renderReview();
+};
 
 function backToBoard() {
   rouletteUI.busy = false;

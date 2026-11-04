@@ -88,6 +88,12 @@ addEventListener("pagehide", () => {
       for (const [n, t] of Object.entries(here)) {
         if (!(n in v)) { v[n] = t; upload[k] = { ...upload[k], [n]: t }; }
       }
+    } else if (here !== undefined && how === "dated") {
+      // The entry reviewed most recently wins, on either side.
+      v = { ...there };
+      for (const [n, e] of Object.entries(here)) {
+        if (!v[n] || e.last > v[n].last) { v[n] = e; upload[k] = { ...upload[k], [n]: e }; }
+      }
     } else if (here !== undefined && how === "max") {
       if (here > (there ?? 0)) { v = here; upload[k] = here; }
     } else if (here !== undefined && there === undefined) {

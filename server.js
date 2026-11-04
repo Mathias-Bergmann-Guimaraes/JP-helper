@@ -434,10 +434,12 @@ function touch(id) {
 //   texts  — { [name]: [string] } (sentences the member wrote): the latest list of each name wins.
 //   notes  — { [name]: [{ w, r, en, n }] } (corrected mistakes: wrong, right, English, times
 //            answered right since): the latest list of each name wins.
+//   dated  — { [name]: { step, last, due } } (spaced review of a grammar point): the entry reviewed
+//            most recently wins, so one device can't undo the reviews made on another.
 // The page gets this list too (in progress.js), so adding a key here is all it takes.
 const PROGRESS_MERGE = {
   lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest", sentences: "texts",
-  mistakes: "notes", roulette: "latest",
+  mistakes: "notes", roulette: "latest", review: "dated", reviewDay: "latest",
 };
 const MAX_PROGRESS_BODY = 512 * 1024;
 const MAX_LATEST = 2 * 1024;
@@ -452,6 +454,10 @@ const isNote = (o) => o && typeof o === "object" && !Array.isArray(o) &&
   isText(o.w, 1) && isText(o.r, 1) && (o.en === undefined || isText(o.en)) &&
   Number.isInteger(o.n) && o.n >= 0 && o.n <= 99;
 const isScore = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1e9;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isDated = (o) => o && typeof o === "object" && !Array.isArray(o) &&
+  Object.keys(o).length === 3 && Number.isInteger(o.step) && o.step >= 0 && o.step <= 99 &&
+  typeof o.last === "string" && DAY_RE.test(o.last) && typeof o.due === "string" && DAY_RE.test(o.due);
 
 // `owner` lets a browser tell whose progress it has saved locally, so a second account on the
 // same browser never inherits (or uploads) someone else's.
@@ -471,6 +477,13 @@ function mergeProgress(how, saved, v) {
   if (how === "latest") return v !== null && JSON.stringify(v).length <= MAX_LATEST ? v : undefined;
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   const out = { ...saved };
+  if (how === "dated") {
+    for (const [name, entry] of Object.entries(v)) {
+      if (!SCORE_NAME_RE.test(name) || !isDated(entry)) return undefined;
+      if (!out[name] || entry.last >= out[name].last) out[name] = entry;
+    }
+    return Object.keys(out).length <= MAX_SCORES ? out : undefined;
+  }
   if (how === "texts" || how === "notes") {
     const [max, valid] = how === "texts" ? [MAX_TEXTS, (t) => isText(t)] : [MAX_NOTES, isNote];
     for (const [name, list] of Object.entries(v)) {

@@ -1302,6 +1302,25 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 }
 .ar-diagram { white-space: pre; overflow-x: auto; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--border); background: var(--surface); font-size: 1.05rem; line-height: 1.9; }
 
+/* Spaced review */
+.rv-text { margin: 0 0 10px; }
+.rv-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.rv-pill { display: inline-block; padding: 2px 10px; border: 1.5px solid var(--c); border-radius: 999px; color: var(--c); font-weight: 700; font-size: .9rem; }
+.rv-rest { --c: var(--muted); font-weight: 400; }
+.rv-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.rv-rows { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 16px; align-items: center; margin: 8px 0 12px; }
+.rv-row { display: contents; }
+.rv-row .rv-pill { justify-self: start; }
+.rv-mark { font-weight: 700; font-variant-numeric: tabular-nums; }
+.rv-mark.good { color: var(--good); }
+.rv-mark.some { color: var(--gold); }
+.rv-mark.bad { color: var(--bad); }
+.rv-actions { margin-top: 12px; }
+@media (max-width: 520px) {
+  .rv-rows { grid-template-columns: minmax(0, 1fr) auto; }
+  .rv-row .small { grid-column: 1 / -1; margin-top: -6px; }
+}
+
 /* Daily roulettes */
 .card.rl { margin-bottom: 18px; }
 .rl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
