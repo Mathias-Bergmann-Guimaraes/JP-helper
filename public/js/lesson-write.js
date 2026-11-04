@@ -149,6 +149,7 @@ function drawWriteBtn(l, i) {
 }
 
 function openWrite(l, i) {
+  track("write.open");
   l.points.forEach((_, j) => { closeCheck(l, j); if (j !== i) closeWrite(l, j); });
   const card = $(`#lp-${i}`);
   $(".lp-write", card).hidden = false;
@@ -232,6 +233,7 @@ function runWrite(l, i, start) {
 }
 
 function finishWrite(l, i, sentences) {
+  track("write.done");
   const key = `${l.n}.${i}`;
   const before = written[key];
   const changed = !before || before.join("\n") !== sentences.join("\n");
@@ -334,6 +336,7 @@ function wireCopyPrompt(box, getText) {
   const copy = $(".lw-copy", box);
   const label = copy.textContent;
   copy.onclick = async () => {
+    track("chatbot.copy");
     const text = getText();
     const ok = await copyText(text);
     copy.textContent = ok ? "Copied ✓ — paste it into your chatbot" : "Copy it from the box below";

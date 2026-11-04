@@ -112,6 +112,32 @@ function clearProgress() {
   for (const k of [...Object.keys(progress.merge), ...LOCAL_PROGRESS, "progressOwner"]) store.del(k);
 }
 
+/* ---------------------------------------------------------------- Usage */
+
+// Counts which features get used, for the admin page's anonymous totals: only a feature's name is
+// sent, never what was typed. The names are listed in USAGE_GROUPS in server.js.
+const usage = { pending: {}, timer: null };
+
+function track(feature) {
+  if (!progress.sync) return; // no server.js: the page was opened as a file
+  usage.pending[feature] = (usage.pending[feature] || 0) + 1;
+  if (!usage.timer) usage.timer = setTimeout(sendUsage, 10000); // gathers a while's use into one request
+}
+
+function sendUsage() {
+  clearTimeout(usage.timer);
+  usage.timer = null;
+  if (!Object.keys(usage.pending).length) return;
+  const body = JSON.stringify(usage.pending);
+  usage.pending = {};
+  // keepalive lets it finish when the page is closing. A lost count doesn't matter.
+  fetch("/usage", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body }).catch(() => {});
+}
+
+addEventListener("pagehide", sendUsage);
+// Phones often close a page in the background without a pagehide.
+document.addEventListener("visibilitychange", () => { if (document.hidden) sendUsage(); });
+
 const partsHTML = (parts) => parts.map((p) => `<span class="vp ${p.cls}">${ruby(p.m)}</span>`).join("");
 
 /* ---------------------------------------------------------------- Tabs */
@@ -120,6 +146,7 @@ const TABS = ["home", "lessons", "structure", "particles", "verbs", "adjectives"
 
 function showTab(id) {
   if (!TABS.includes(id)) id = "home";
+  if (!$("#" + id).classList.contains("active")) track("tab." + id);
   $$("#tabs button").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === id);
     // On a narrow screen the tabs scroll sideways: keep the open one in view.
@@ -175,6 +202,7 @@ function drawAccount(state) {
 }
 
 async function logOut() {
+  sendUsage();
   try {
     await post("/access/logout", {});
   } finally {
@@ -301,9 +329,9 @@ function renderStructure() {
       </div>
     </div>`;
 
-  $("#svPrev").onclick = () => showSentence(sentIdx - 1);
-  $("#svNext").onclick = () => showSentence(sentIdx + 1);
-  $("#svShuffle").onclick = shuffleSentence;
+  $("#svPrev").onclick = () => { track("explore.sentences"); showSentence(sentIdx - 1); };
+  $("#svNext").onclick = () => { track("explore.sentences"); showSentence(sentIdx + 1); };
+  $("#svShuffle").onclick = () => { track("explore.sentences"); shuffleSentence(); };
 
   const sv = $("#sv");
   const link = (i) => {
@@ -459,7 +487,7 @@ function renderParticles() {
       </div>
     </div>`;
 
-  $$(".ptile").forEach((b) => (b.onclick = () => showParticle(b.dataset.id, true)));
+  $$(".ptile").forEach((b) => (b.onclick = () => { track("explore.particles"); showParticle(b.dataset.id, true); }));
   showParticle(currentParticle);
 }
 
@@ -550,8 +578,8 @@ function renderVerbs() {
       </div>
     </div>`;
 
-  $$("#verbs [data-v]").forEach((b) => (b.onclick = () => { verbIdx = +b.dataset.v; updateVerb(); }));
-  $$("#verbs [data-f]").forEach((b) => (b.onclick = () => { verbForm = b.dataset.f; updateVerb(); }));
+  $$("#verbs [data-v]").forEach((b) => (b.onclick = () => { track("explore.verbs"); verbIdx = +b.dataset.v; updateVerb(); }));
+  $$("#verbs [data-f]").forEach((b) => (b.onclick = () => { track("explore.verbs"); verbForm = b.dataset.f; updateVerb(); }));
   updateVerb();
 }
 
@@ -591,7 +619,7 @@ function updateVerb() {
       }).join("")}
     </table>`;
   $("#formTable").style.setProperty("--gc", g.color);
-  $$("#formTable tr").forEach((tr) => (tr.onclick = () => { verbForm = tr.dataset.f; updateVerb(); }));
+  $$("#formTable tr").forEach((tr) => (tr.onclick = () => { track("explore.verbs"); verbForm = tr.dataset.f; updateVerb(); }));
 }
 
 function vizHTML(z, v) {
@@ -706,7 +734,7 @@ function renderAdjectives() {
       <div class="card adj-card" id="adj-i"></div>
       <div class="card adj-card" id="adj-na"></div>
     </div>`;
-  $("#politeToggle").onchange = (e) => { adjState.polite = e.target.checked; drawAdj("i"); drawAdj("na"); };
+  $("#politeToggle").onchange = (e) => { track("explore.adjectives"); adjState.polite = e.target.checked; drawAdj("i"); drawAdj("na"); };
   drawAdj("i");
   drawAdj("na");
 }
@@ -743,7 +771,7 @@ function drawAdj(type) {
     </div>
     ${a.note ? `<div class="note">${a.note}</div>` : ""}
     ${type === "na" && adjState.polite ? `<p class="small muted">Also common: <span lang="ja">じゃないです / ではありません</span>.</p>` : ""}`;
-  $$("[data-a]", el).forEach((b) => (b.onclick = () => { adjState[type] = +b.dataset.a; drawAdj(type); }));
+  $$("[data-a]", el).forEach((b) => (b.onclick = () => { track("explore.adjectives"); adjState[type] = +b.dataset.a; drawAdj(type); }));
 }
 
 /* ---------------------------------------------------------------- Verb patterns */
@@ -830,7 +858,7 @@ function renderPatterns() {
 
     ${VERB_PATTERNS.map(patternCardHTML).join("")}`;
 
-  $$("#patterns [data-pv]").forEach((b) => (b.onclick = () => { patVerb = +b.dataset.pv; updatePatternVerb(); }));
+  $$("#patterns [data-pv]").forEach((b) => (b.onclick = () => { track("explore.patterns"); patVerb = +b.dataset.pv; updatePatternVerb(); }));
   $$("#patterns [data-jump]").forEach((b) => (b.onclick = () => {
     const card = $("#pat-" + b.dataset.jump);
     const offset = $(".topbar").offsetHeight + ($(".pat-picker").offsetHeight || 0) + 16;
@@ -1067,6 +1095,7 @@ function makePatternQ(patId) {
 function answer(i) {
   if (quiz.answered) return;
   quiz.answered = true;
+  track("quiz." + quiz.mode);
   const q = quiz.q;
   const ok = q.options[i].correct;
   quiz.total++;
@@ -1112,6 +1141,7 @@ function setupTheme() {
   applyTheme();
   darkMq.addEventListener("change", applyTheme);
   $("#themeBtn").onclick = () => {
+    track("setting.theme");
     const keys = Object.keys(THEMES);
     store.set("theme", keys[(keys.indexOf(store.get("theme", "auto")) + 1) % keys.length]);
     applyTheme();
@@ -1126,6 +1156,7 @@ function init() {
   furi.checked = store.get("furigana", true);
   document.body.classList.toggle("no-furi", !furi.checked);
   furi.onchange = () => {
+    track("setting.furigana");
     document.body.classList.toggle("no-furi", !furi.checked);
     store.set("furigana", furi.checked);
   };

@@ -66,6 +66,7 @@ function goTo(link) {
 
 function showLesson(n, scroll) {
   const l = LESSONS.find((x) => x.n === n) || LESSONS[0];
+  if (l.n !== lessonState.n) track("lesson.open");
   lessonState.n = l.n;
   store.set("lesson", l.n);
   const prev = LESSONS.find((x) => x.n === l.n - 1);
@@ -384,6 +385,7 @@ function nextLessonPractice(l) {
   }
   $("#lpNext").hidden = true;
   askIn($("#lpQ"), q, (ok, b) => {
+    track("lesson.practice");
     lp.total++;
     if (ok) { lp.score++; lp.streak++; } else lp.streak = 0;
     // From COMBO_AT right in a row, every answer is worth double.
@@ -421,7 +423,7 @@ function showTestIntro(l) {
         <button class="btn primary" id="ltStart">${best === undefined ? "Start the test" : "Take the test again"}</button>
       </div>
     </div>`;
-  $("#ltStart").onclick = () => runTest(l, { qs: buildTest(l), i: 0, results: [] });
+  $("#ltStart").onclick = () => { track("lesson.test"); runTest(l, { qs: buildTest(l), i: 0, results: [] }); };
 }
 
 function runTest(l, t) {
@@ -458,6 +460,7 @@ function saveTestScore(l, score) {
 }
 
 function finishTest(l, t) {
+  track("lesson.testDone");
   const score = t.results.filter(Boolean).length;
   const passed = score >= PASS_MARK;
   const wasPassed = lessonPassed(l.n);
@@ -484,7 +487,7 @@ function finishTest(l, t) {
       <button class="btn" id="ltRetry">Try again</button>
       ${passed && next ? `<button class="btn primary" id="ltNextLesson">Lesson ${next.n}: ${next.title} ›</button>` : ""}
     </div>`;
-  $("#ltRetry").onclick = () => runTest(l, { qs: buildTest(l), i: 0, results: [] });
+  $("#ltRetry").onclick = () => { track("lesson.test"); runTest(l, { qs: buildTest(l), i: 0, results: [] }); };
   const go = $("#ltNextLesson");
   if (go) go.onclick = () => showLesson(next.n, true);
   if (bonus) addXP(bonus, $("#lTest .lt-score b"));
@@ -517,6 +520,7 @@ function drawPointStars(l, i) {
 }
 
 function openCheck(l, i) {
+  track("lesson.check");
   // One check (or writing box) open at a time.
   l.points.forEach((_, j) => { closeWrite(l, j); if (j !== i) closeCheck(l, j); });
   const card = $(`#lp-${i}`);
@@ -579,6 +583,7 @@ function saveCheckStars(l, i, score) {
 }
 
 function finishCheck(l, i, t) {
+  track("lesson.checkDone");
   const score = t.results.filter(Boolean).length;
   const { stars, old, gained } = saveCheckStars(l, i, score);
   const nextPoint = l.points.findIndex((_, j) => j > i && pointStars(l.n, j) < 3);
@@ -598,7 +603,7 @@ function finishCheck(l, i, t) {
         ? `<button class="btn primary" data-a="next">Next point: <span lang="ja">${l.points[nextPoint].g}</span> ›</button>`
         : `<button class="btn primary" data-a="test">On to the lesson test ↓</button>`}
     </div>`;
-  $("[data-a=again]", box).onclick = () => runCheck(l, i, { qs: buildCheck(l, i), i: 0, results: [] });
+  $("[data-a=again]", box).onclick = () => { track("lesson.check"); runCheck(l, i, { qs: buildCheck(l, i), i: 0, results: [] }); };
   $("[data-a=next], [data-a=test]", box).onclick = (e) => {
     if (e.currentTarget.dataset.a === "next") openCheck(l, nextPoint);
     else { closeCheck(l, i); scrollBelowBar($("#lTest").previousElementSibling); }

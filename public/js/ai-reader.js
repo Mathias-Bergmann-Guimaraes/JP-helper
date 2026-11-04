@@ -406,7 +406,10 @@ function setupAiReader(root, saved, onChange) {
     clearTimeout(timer);
     timer = setTimeout(() => onChange && onChange(ta.value.trim()), 400);
   };
-  ta.addEventListener("paste", () => setTimeout(() => { if (ta.value.trim()) fold(true); }, 0));
+  ta.addEventListener("paste", () => {
+    track("chatbot.answer");
+    setTimeout(() => { if (ta.value.trim()) fold(true); }, 0);
+  });
   toggle.onclick = () => { fold(!ta.hidden); if (!ta.hidden) ta.focus(); };
   clear.onclick = () => {
     ta.value = "";

@@ -40,7 +40,7 @@ function renderHome() {
           </button>`).join("")}
       </div>
     </div>`;
-  $$("#home [data-page]").forEach((b) => (b.onclick = () => { showTab(b.dataset.page); window.scrollTo({ top: 0 }); }));
+  $$("#home [data-page]").forEach((b) => (b.onclick = () => { track("home.explore"); showTab(b.dataset.page); window.scrollTo({ top: 0 }); }));
   renderHud();
   renderHomeDay();
   renderContinue();
@@ -87,6 +87,7 @@ function renderContinue() {
       <button class="btn" id="homeAll">All lessons</button>
     </div>`;
   $("#homeGo").onclick = () => {
+    track("home.continue");
     openLessonTab(l);
     if (next) goToNextStep(l, next);
     else scrollBelowBar($("#lessonDetail"));

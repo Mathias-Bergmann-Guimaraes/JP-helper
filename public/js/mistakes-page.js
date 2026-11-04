@@ -85,6 +85,7 @@ function startPageRound() {
   const open = LESSONS.flatMap((l) => lessonMistakes(l).filter((x) => !isLearned(x.m)).map((x) => ({ l, ...x })));
   const qs = shuffle(open).slice(0, PAGE_ROUND_LEN).map((x) => mistakeQ(x.l, x.i, x.m));
   if (!qs.length) return;
+  track("mistakes.round");
   mistakesPage.round = true;
   const area = $("#mistakesBody");
   $(".lm-list", area).hidden = true;

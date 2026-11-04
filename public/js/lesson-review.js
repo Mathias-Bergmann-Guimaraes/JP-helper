@@ -179,6 +179,7 @@ function reviewQuestions({ l, i }) {
 }
 
 function startReview(points, daily) {
+  track(daily ? "review.daily" : "review.more");
   const mixed = shuffle(points.flatMap((p) => reviewQuestions(p).map((q) => ({ q, key: pointKey(p) }))));
   const t = { qs: mixed.map((x) => x.q), owners: mixed.map((x) => x.key), i: 0, results: [], points, daily, outcomes: {} };
   reviewUI.busy = true;
@@ -247,6 +248,7 @@ function outcomeRow(t, p) {
 }
 
 function finishReview(t) {
+  track("review.done");
   const score = t.results.filter(Boolean).length;
   const log = logToday();
   const paid = t.daily && !log.bonus;

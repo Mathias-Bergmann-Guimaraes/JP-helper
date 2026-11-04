@@ -69,6 +69,15 @@ account in `data/progress.json`, so it follows a member to every browser they lo
 Progress made in a browser before logins existed moves into the first account that logs in
 there. **Remove** deletes it along with the login.
 
+The admin page's **Usage** view shows which features get used: people active per day, and how
+often each page and feature was used over the last 7, 30 or 90 days, including the ones nobody
+touched. It holds anonymous daily totals only, in `data/usage.json`, kept for 90 days. Nothing
+links a member to a feature: the list of who has already been counted today stays in memory, so
+restarting the server can count someone twice that day. For the same reason, "people" can't be
+added up across days, so the page shows the most people in a single day instead. The site reports
+only a feature's name, never what was typed, and sends nothing to a third party. To count a new
+feature, add it to `USAGE_GROUPS` in `server.js` and call `track("its.name")` in the page.
+
 Settings via environment variables: `PORT` (default 5173), `HOST` (default 0.0.0.0),
 `ADMIN_PORT` (default 3004) and `DATA_FILE` (default `data/access.json`).
 

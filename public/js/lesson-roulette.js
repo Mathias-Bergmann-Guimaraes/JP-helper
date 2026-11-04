@@ -287,6 +287,7 @@ function startRun(r, target) {
     store.set("roulette", spin);
     return backToBoard();
   }
+  track("roulette." + r.id);
   rouletteUI.busy = true;
   rouletteUI.view = r.id;
   runQuiz(r, target, { qs, i: 0, results: [] });
@@ -331,6 +332,7 @@ function resultWords(target, score, of) {
 }
 
 function finishRun(r, target, t) {
+  track("roulette.done");
   const of = t.qs.length;
   const score = t.results.filter(Boolean).length;
   const run = runOf(r.id);

@@ -256,6 +256,7 @@ function pressBlock(e, el) {
 /* ---------------------------------------------------------------- Checking */
 
 function checkBuild() {
+  track("build.blocks");
   const s = buildState;
   const wrong = wrongSpots(s.b, s.placed);
   if (wrong.length) {
@@ -474,6 +475,7 @@ function enterSentence(run) {
     $("#lBuild .sb-note").textContent = "Write it in Japanese, or skip this one.";
     return;
   }
+  track("build.text");
   const n = normJa(typed);
   if (acceptedTexts(x.b).has(n)) {
     const natural = x.b.blocks.map((y) => y.text).join("");

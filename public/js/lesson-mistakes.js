@@ -248,6 +248,7 @@ function renderMistakes(l) {
 function startMistakeRound(l) {
   const qs = shuffle(lessonMistakes(l).filter((x) => !isLearned(x.m))).slice(0, 10).map((x) => mistakeQ(l, x.i, x.m));
   if (!qs.length) return;
+  track("mistakes.round");
   mistakeRound.on = true;
   $("#lMistakes .lm-list").hidden = true;
   $("#lMistakes .lm-bar").hidden = true;
