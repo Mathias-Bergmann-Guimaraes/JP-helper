@@ -14,7 +14,7 @@ const pointStars = (n, i) => lessonState.stars[`${n}.${i}`] || 0;
 const lessonStars = (l) => l.points.reduce((s, _, i) => s + pointStars(l.n, i), 0);
 
 // XP per right answer, and bonuses for finishing things.
-const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10, write: 20, rewrite: 6 };
+const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10, write: 20, rewrite: 6, build: 4 };
 const COMBO_AT = 5;
 
 function renderLessons() {
@@ -126,6 +126,11 @@ function showLesson(n, scroll) {
       <div class="q-actions"><button class="btn primary" id="lpNext" hidden>Next question →</button></div>
     </div>
     <div class="lsection">
+      <h3>Build the sentence</h3>
+      <p class="small muted">${BUILDS[l.n].length} sentences from this lesson. Read the English, then tap or drag the colour blocks into Japanese order, or switch to free text and write it yourself. ${XP.build} XP each time you get it right first time.</p>
+    </div>
+    <div class="card lquiz" id="lBuild"></div>
+    <div class="lsection">
       <h3>Lesson test</h3>
       <p class="small muted">${TEST_LEN} questions. Get ${PASS_MARK} or more right to finish the lesson.</p>
     </div>
@@ -146,6 +151,7 @@ function showLesson(n, scroll) {
   renderMistakes(l);
   renderAiPrompts(l);
   startLessonPractice(l);
+  startBuild(l);
   showTestIntro(l);
   updateLessonPath();
 

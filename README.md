@@ -22,6 +22,15 @@ points, most overdue first; **Study more** carries on 5 points at a time past th
 is due you can review the next ones early, which doesn't push their dates back unless you slip.
 Missed days lose nothing, and doing a due point's 5-question check counts as its review.
 
+Every lesson also has a sentence builder: read the English and tap or drag the shuffled colour
+blocks into Japanese order. Sentences that can be reordered accept any natural order, and say which one is the
+most usual. The sentences live in `public/js/builds.js`, where `~` marks the blocks that can swap. In its
+**Free text · AI** mode you type the Japanese instead, one sentence under the other. The site's own
+wordings, in kanji or kana, are right straight away. Anything else waits, and when you've finished
+(or choose to check sooner) all of those go to your own chatbot in one copied prompt. Pasting its
+answer back scores them and saves any corrections to "Your mistakes". The site itself sends nothing
+to an AI service.
+
 The whole site is **private**. Visitors without a login only see a login page. From there they
 can pick a username and password and send an access request, which you approve by hand — or
 use a single-use invite code you gave them, which lets them in straight away. After that they

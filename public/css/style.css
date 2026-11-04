@@ -1302,6 +1302,61 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 }
 .ar-diagram { white-space: pre; overflow-x: auto; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--border); background: var(--surface); font-size: 1.05rem; line-height: 1.9; }
 
+/* A pasted chatbot answer: only the answer and what came of it, until Edit is pressed. */
+.lw-ai.ai-answered > p:not(.sb-verdict):not(.lw-saved),
+.lw-ai.ai-answered > .lw-copy,
+.lw-ai.ai-answered > .lw-prompt { display: none; }
+.ar-toggle { margin-left: auto; }
+
+/* Sentence builder */
+.sb-top { align-items: center; }
+.sb-modes { display: inline-flex; margin-left: auto; padding: 2px; border-radius: 999px; background: var(--surface-2); }
+.sb-mode { padding: 4px 12px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+.sb-mode.on { background: var(--text); color: var(--surface); }
+.sb-text { display: block; width: 100%; box-sizing: border-box; padding: 12px 14px; border: 2px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; font-size: 1.3rem; }
+.sb-text:focus { outline: none; border-color: var(--accent); }
+.sb-note:empty { display: none; }
+.sb-note { margin-top: 6px; color: var(--bad); }
+.sb-tx-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.sb-tx-row.active { border-bottom: 0; }
+.sb-tx-row.active .q-en-big { margin-bottom: 8px; }
+.sb-tx-head { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; }
+.sb-tx-head .sb-tx-mark { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.sb-tx-mark.ok { color: var(--good); font-weight: 700; }
+.sb-tx-mark.bad { color: var(--bad); font-weight: 700; }
+.sb-tx-edit { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.sb-tx-ja { font-size: 1.15rem; margin-top: 2px; }
+.sb-tx-site { margin-top: 4px; }
+.sb-tx-keys { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.sb-left { margin: 8px 0 0; }
+.sb-tx-score { margin: 8px 0 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sb-tx-score b { font-size: 1.9rem; color: var(--text); }
+.sb-tx-answers { margin-top: 12px; }
+.sb-tx-answers summary { cursor: pointer; }
+#sbPanel .lw-ai { margin-top: 12px; }
+.sb-verdict.ok { color: var(--good); font-weight: 700; }
+.sb-verdict.bad { color: var(--bad); font-weight: 700; }
+.sb-verdict:empty { display: none; }
+.sb-row { min-height: 72px; padding: 10px; border-radius: 12px; align-items: stretch; }
+.sb-answer { border: 2px dashed var(--border); align-items: center; }
+.sb-bank { margin-top: 10px; }
+.sb-bank:empty { display: none; }
+.sb-empty { padding: 0 4px; }
+.sb-block { font: inherit; color: var(--text); cursor: pointer; }
+.sb-block:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); }
+.sb-block.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--surface)); }
+.sb-actions { flex-wrap: wrap; gap: 8px; }
+/* touch-action: a swipe on a block drags it, so the browser mustn't take it to scroll the page. */
+.sb-live .sb-block { cursor: grab; touch-action: none; }
+.sb-answer { position: relative; }
+.sb-dragging .sb-bank:empty { display: flex; border: 2px dashed var(--border); }
+.sb-row.sb-over { border-color: var(--accent); }
+.sb-bank { border: 2px solid transparent; }
+.sb-held { opacity: .3; }
+.sb-ghost { position: fixed; z-index: 1000; margin: 0; pointer-events: none; cursor: grabbing; transition: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); }
+.sb-marker { position: absolute; width: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; }
+.sb-marker[hidden] { display: none; }
+
 /* Spaced review */
 .rv-text { margin: 0 0 10px; }
 .rv-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }

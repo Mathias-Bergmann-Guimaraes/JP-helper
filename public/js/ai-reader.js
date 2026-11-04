@@ -379,17 +379,24 @@ function setupAiReader(root, saved, onChange) {
   const outBox = $(".ar-out", root);
   const clear = $(".ar-clear", root);
   const toggle = $(".ar-toggle", root);
+  const hint = $(".ar-hint", root);
+  // The steps around the reader, where it has them: how to copy the prompt and paste the answer.
+  const steps = root.closest(".lw-ai");
   let timer;
   const draw = () => {
     const text = ta.value.trim();
     outBox.innerHTML = text ? renderAiAnswer(text) : "";
-    clear.hidden = !text;
+    clear.hidden = !text || ta.hidden;
     toggle.hidden = !text;
   };
-  // Once there's an answer, fold the text box away so the drawn version is what you read.
+  // Once there's an answer, fold the text box and the steps away so the drawn version is what you
+  // read. Edit brings them back.
   const fold = (folded) => {
     ta.hidden = folded;
-    toggle.textContent = folded ? "Edit the text" : "Hide the text";
+    hint.hidden = folded;
+    clear.hidden = folded || !ta.value.trim();
+    toggle.textContent = folded ? "Edit" : "Done";
+    if (steps) steps.classList.toggle("ai-answered", folded);
   };
   ta.value = saved || "";
   draw();

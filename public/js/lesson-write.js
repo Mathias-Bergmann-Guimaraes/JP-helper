@@ -292,20 +292,7 @@ function showWritten(l, i, xp = 0, first = false) {
   $(".lp-close", box).onclick = () => closeWrite(l, i);
   $("[data-a=edit]", box).onclick = () => runWrite(l, i, writeDrafts[key] || mine);
   $("[data-a=new]", box).onclick = () => runWrite(l, i, []);
-  const copy = $(".lw-copy", box);
-  copy.onclick = async () => {
-    const text = writePrompt(l, i, mine);
-    const ok = await copyText(text);
-    copy.textContent = ok ? "Copied ✓ — paste it into your chatbot" : "Copy it from the box below";
-    if (!ok) {
-      const ta = $(".lw-prompt", box);
-      ta.value = text;
-      ta.hidden = false;
-      ta.select();
-    }
-    clearTimeout(copy.timer);
-    copy.timer = setTimeout(() => (copy.textContent = "Copy “check my sentences” prompt"), 2500);
-  };
+  wireCopyPrompt(box, () => writePrompt(l, i, mine));
   // The chatbot's verdicts show up next to the sentences too.
   const markVerdicts = (text) => {
     const v = aiVerdicts(text || "");
@@ -340,6 +327,25 @@ function writePrompt(l, i, sentences) {
   const f = `the pattern ${promptJa(p.g, furi)}, meaning "${p.m}"`;
   const task = AI_PRESETS.find((x) => x.id === "check").task({ l, f, furi }).replace(/1\. $/, "");
   return [promptContext(l, furi), promptStyle(l, furi), task + sentences.map((s, j) => `${j + 1}. ${s}`).join("\n")].join("\n\n");
+}
+
+// The .lw-copy button in `box` copies the prompt, or shows it in .lw-prompt if copying fails.
+function wireCopyPrompt(box, getText) {
+  const copy = $(".lw-copy", box);
+  const label = copy.textContent;
+  copy.onclick = async () => {
+    const text = getText();
+    const ok = await copyText(text);
+    copy.textContent = ok ? "Copied ✓ — paste it into your chatbot" : "Copy it from the box below";
+    if (!ok) {
+      const ta = $(".lw-prompt", box);
+      ta.value = text;
+      ta.hidden = false;
+      ta.select();
+    }
+    clearTimeout(copy.timer);
+    copy.timer = setTimeout(() => (copy.textContent = label), 2500);
+  };
 }
 
 // The clipboard API needs https or localhost; on a plain-http LAN address fall back to execCommand.

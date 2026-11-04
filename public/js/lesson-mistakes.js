@@ -35,13 +35,14 @@ const matchEnd = (w, r) => r.replace(END_PUNCT, "") + ((w.match(END_PUNCT) || ["
 
 // Read the ✗ sentences out of the chatbot's answer for point i. Mistakes from older sets of
 // sentences stay; those of the current set are redone from this answer (keeping any progress on
-// one that didn't change). Returns how many the current set has now.
-function saveCorrections(l, i, text, mine) {
+// one that didn't change). Returns how many the current set has now. `corrections` is for an answer
+// that also covers sentences of other points: only those of this point, numbered within `mine`.
+function saveCorrections(l, i, text, mine, corrections = aiCorrections(text)) {
   const key = `${l.n}.${i}`;
   const list = mistakes[key] || [];
   const old = list.filter((m) => mine.includes(m.w));
   const found = [];
-  for (const c of aiCorrections(text)) {
+  for (const c of corrections) {
     // The sentence as it was typed: the chatbot may have added furigana or punctuation.
     const w = mine.find((s) => normJa(s) === normJa(c.text)) || mine[c.n - 1] || c.text;
     const r = matchEnd(w, c.right);
