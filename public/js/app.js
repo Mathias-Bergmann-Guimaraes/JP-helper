@@ -116,15 +116,21 @@ const partsHTML = (parts) => parts.map((p) => `<span class="vp ${p.cls}">${ruby(
 
 /* ---------------------------------------------------------------- Tabs */
 
-const TABS = ["home", "lessons", "structure", "particles", "verbs", "adjectives", "patterns", "practice"];
+const TABS = ["home", "lessons", "structure", "particles", "verbs", "adjectives", "patterns", "practice", "mistakes"];
 
 function showTab(id) {
   if (!TABS.includes(id)) id = "home";
-  $$("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
+  $$("#tabs button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.tab === id);
+    // On a narrow screen the tabs scroll sideways: keep the open one in view.
+    if (b.dataset.tab === id) b.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
   $$(".panel").forEach((p) => p.classList.toggle("active", p.id === id));
   if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
   // The lesson list can only scroll to the open lesson while it's on screen.
   if (id === "lessons") updateLessonPath();
+  // Mistakes are added and learned on other pages, so this one is drawn as it opens.
+  if (id === "mistakes") renderMistakesPage();
 }
 
 /* ---------------------------------------------------------------- Account */

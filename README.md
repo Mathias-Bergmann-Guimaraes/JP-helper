@@ -8,7 +8,8 @@ three sentences of their own with each grammar point for extra XP; the site chec
 (Japanese, not copied, the pattern spotted where it can tell) and builds a prompt to get them
 corrected by any chatbot. Pasting the chatbot's answer back redraws it with the site's colour
 blocks, and every sentence it marks wrong goes to a "Your mistakes" list on the lesson page,
-next to its correction, and comes back as a question until it's answered right twice. The daily
+next to its correction, and comes back as a question until it's answered right twice. The
+**Mistakes** tab shows those lists from every lesson together and can practise them across lessons. The daily
 roulettes test what you've already finished (a star on a point's check, or its lesson's test
 passed): Review (one random point), Lesson (one random lesson's full test), Mixed (questions from
 many points) and Weak spot (your uncorrected mistakes, or your lowest-starred point). Each pays a

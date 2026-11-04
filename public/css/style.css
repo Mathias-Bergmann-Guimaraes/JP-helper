@@ -165,12 +165,14 @@ body.no-furi rt { display: none; }
 .account-btn:hover { border-color: var(--muted); }
 .theme-btn { white-space: nowrap; font-size: .85rem; }
 /* Below wide screens the top bar is tight: just the icon (and a little less room per tab). */
-@media (max-width: 1100px) {
+@media (max-width: 1400px) {
   .theme-btn { padding: 4px 9px; }
   .theme-word { display: none; }
 }
-@media (min-width: 861px) and (max-width: 1100px) {
-  .tabs button { padding: 8px 11px; }
+@media (min-width: 861px) and (max-width: 1400px) {
+  .brand-text small { display: none; }
+  .tabs { gap: 2px; }
+  .tabs button { padding: 8px 10px; }
 }
 
 /* ------------------------------------------------------------ Layout */
@@ -1295,6 +1297,14 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .lm-foot b { color: var(--text); }
 .lm-item.learned .lm-progress { color: var(--good); font-weight: 700; }
 .lm-fb .lm-pair { margin-bottom: 4px; }
+/* The Mistakes tab: every lesson's list in one place */
+.mp-lesson { display: grid; gap: 14px; }
+.mp-lesson + .mp-lesson { padding-top: 22px; border-top: 1px solid var(--border); }
+.mp-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.mp-head h2 { margin: 0; }
+.mp-head .btn { margin-left: auto; }
+.mp-empty { margin: 0; }
+#mistakesBody .seg button { padding: 7px 12px; white-space: nowrap; }
 .lm-fb .lm-en { margin-bottom: 4px; }
 .lm-q-note { margin: 6px 0 0; }
 @media (max-width: 520px) {

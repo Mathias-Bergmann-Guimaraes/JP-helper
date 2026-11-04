@@ -187,20 +187,36 @@ function markMistake(l, i, m, ok) {
 
 /* ---------------------------------------------------------------- The list on the lesson page */
 
+// One saved mistake, with its progress and a remove button (`del` goes in its data-del).
+const mistakeItemHTML = (m, del) => `
+  <div class="lm-item${isLearned(m) ? " learned" : ""}">
+    ${mistakePairHTML(m)}
+    <div class="lm-foot">
+      <span class="lm-progress">${isLearned(m) ? "✓ Learned" : `Picked right <b>${m.n}</b> / ${LEARNED_AT}`}</span>
+      <button class="icon-btn lm-del" data-del="${del}" aria-label="Remove this mistake" title="Remove">✕</button>
+    </div>
+  </div>`;
+
+// Point i's heading above its mistakes.
+const mistakeGroupHTML = (p, i, items) => `
+  <div class="lm-group" style="--c:${ROLES[p.role].color}">
+    <div class="lm-point"><span class="lm-pnum">${i + 1}</span><span lang="ja">${p.g}</span>
+      <span class="small muted">${p.m}</span></div>
+    ${items}
+  </div>`;
+
+function removeMistake(l, i, k) {
+  mistakes[`${l.n}.${i}`].splice(k, 1);
+  saveMistakes(l);
+  if (l.n === lessonState.n && $(`#lp-${i} .lp-write`) && !$(`#lp-${i} .lp-write`).hidden) drawSavedNote(l, i);
+}
+
 function renderMistakes(l) {
   const box = $("#lMistakes");
   if (!box) return;
   const all = lessonMistakes(l);
   if (!all.length) { box.innerHTML = ""; return; }
   const open = all.filter((x) => !isLearned(x.m)).length;
-  const item = (i, m, k) => `
-    <div class="lm-item${isLearned(m) ? " learned" : ""}">
-      ${mistakePairHTML(m)}
-      <div class="lm-foot">
-        <span class="lm-progress">${isLearned(m) ? "✓ Learned" : `Picked right <b>${m.n}</b> / ${LEARNED_AT}`}</span>
-        <button class="icon-btn lm-del" data-del="${i}.${k}" aria-label="Remove this mistake" title="Remove">✕</button>
-      </div>
-    </div>`;
   box.innerHTML = `
     <div class="lsection">
       <h3>Your mistakes</h3>
@@ -216,20 +232,13 @@ function renderMistakes(l) {
       <div class="lm-list">
         ${l.points.map((p, i) => {
           const list = mistakes[`${l.n}.${i}`] || [];
-          return list.length ? `
-            <div class="lm-group" style="--c:${ROLES[p.role].color}">
-              <div class="lm-point"><span class="lm-pnum">${i + 1}</span><span lang="ja">${p.g}</span>
-                <span class="small muted">${p.m}</span></div>
-              ${list.map((m, k) => item(i, m, k)).join("")}
-            </div>` : "";
+          return list.length ? mistakeGroupHTML(p, i, list.map((m, k) => mistakeItemHTML(m, `${i}.${k}`)).join("")) : "";
         }).join("")}
       </div>
     </div>`;
   $$("[data-del]", box).forEach((b) => (b.onclick = () => {
     const [i, k] = b.dataset.del.split(".").map(Number);
-    mistakes[`${l.n}.${i}`].splice(k, 1);
-    saveMistakes(l);
-    if ($(`#lp-${i} .lp-write`) && !$(`#lp-${i} .lp-write`).hidden) drawSavedNote(l, i);
+    removeMistake(l, i, k);
   }));
   const go = $(".lm-practise", box);
   if (go) go.onclick = () => startMistakeRound(l);
@@ -244,11 +253,13 @@ function startMistakeRound(l) {
   $("#lMistakes .lm-bar").hidden = true;
   const box = $("#lMistakes .lm-quiz");
   box.hidden = false;
-  runMistakeRound(l, box, { qs, i: 0, results: [] });
+  const stop = () => { mistakeRound.on = false; renderMistakes(l); };
+  runMistakeRound($("#lMistakes"), box, { qs, i: 0, results: [] }, stop);
   scrollBelowBar($("#lMistakes"));
 }
 
-function runMistakeRound(l, box, t) {
+// The round's questions in `box`. `area` is what to scroll back to, `stop` ends the round.
+function runMistakeRound(area, box, t, stop) {
   box.innerHTML = `
     <div class="lt-top">
       <span class="small"><b>Your mistakes · question ${t.i + 1}</b> of ${t.qs.length}</span>
@@ -257,7 +268,6 @@ function runMistakeRound(l, box, t) {
     </div>
     <div class="lp-q"></div>
     <div class="q-actions"><button class="btn primary" hidden>${t.i + 1 < t.qs.length ? "Next question →" : "Done"}</button></div>`;
-  const stop = () => { mistakeRound.on = false; renderMistakes(l); };
   $(".lp-close", box).onclick = stop;
   const next = $(".q-actions .btn", box);
   askIn($(".lp-q", box), t.qs[t.i], (ok, b) => {
@@ -269,13 +279,13 @@ function runMistakeRound(l, box, t) {
   });
   next.onclick = () => {
     t.i++;
-    if (t.i < t.qs.length) runMistakeRound(l, box, t);
+    if (t.i < t.qs.length) runMistakeRound(area, box, t, stop);
     else {
       stop();
       const right = t.results.filter(Boolean).length;
       toast(`<b>${right} / ${t.qs.length}</b> of your own sentences right`);
     }
-    if ($("#lMistakes").getBoundingClientRect().top < 0) scrollBelowBar($("#lMistakes"));
+    if (area.getBoundingClientRect().top < 0) scrollBelowBar(area);
   };
 }
 

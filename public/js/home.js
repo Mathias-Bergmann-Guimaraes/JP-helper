@@ -15,6 +15,7 @@ const HOME_PAGES = [
   { tab: "adjectives", ja: "形", name: "Adjectives", about: "い and な adjectives, side by side." },
   { tab: "patterns", ja: "型", name: "Patterns", about: "Common verb patterns and what they mean." },
   { tab: "practice", ja: "練", name: "Practice", about: "Free quizzes on particles, verbs and more." },
+  { tab: "mistakes", ja: "直", name: "Mistakes", about: "Every sentence your chatbot corrected, in one place." },
 ];
 
 function renderHome() {
