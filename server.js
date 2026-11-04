@@ -437,11 +437,14 @@ function touch(id) {
 //            answered right since): the latest list of each name wins.
 //   dated  — { [name]: { step, last, due } } (spaced review of a grammar point): the entry reviewed
 //            most recently wins, so one device can't undo the reviews made on another.
+//   days   — { [YYYY-MM-DD]: number } (XP per day, for the member's own chart on Home): each day
+//            only ever goes up, and days older than MAX_HISTORY_DAYS are dropped.
 // The page gets this list too (in progress.js), so adding a key here is all it takes.
 const PROGRESS_MERGE = {
   lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest", sentences: "texts",
-  mistakes: "notes", roulette: "latest", review: "dated", reviewDay: "latest",
+  mistakes: "notes", roulette: "latest", review: "dated", reviewDay: "latest", xpDays: "days",
 };
+const MAX_HISTORY_DAYS = 366;
 const MAX_PROGRESS_BODY = 512 * 1024;
 const MAX_LATEST = 2 * 1024;
 const MAX_SCORES = 1000;
@@ -496,9 +499,15 @@ function mergeProgress(how, saved, v) {
     }
     return Object.keys(out).length <= MAX_SCORES ? out : undefined;
   }
+  const nameRe = how === "days" ? DAY_RE : SCORE_NAME_RE;
   for (const [name, score] of Object.entries(v)) {
-    if (!SCORE_NAME_RE.test(name) || !isScore(score)) return undefined;
+    if (!nameRe.test(name) || !isScore(score)) return undefined;
     out[name] = Math.max(out[name] ?? -1, score);
+  }
+  if (how === "days") {
+    const oldest = new Date();
+    oldest.setDate(oldest.getDate() - MAX_HISTORY_DAYS);
+    for (const day of Object.keys(out)) if (day < serverDay(oldest)) delete out[day];
   }
   return Object.keys(out).length <= MAX_SCORES ? out : undefined;
 }
@@ -529,7 +538,7 @@ const USAGE_GROUPS = {
     "tab.home": "Home", "tab.lessons": "Lessons", "tab.structure": "Sentences", "tab.particles": "Particles", "tab.verbs": "Verbs",
     "tab.adjectives": "Adjectives", "tab.patterns": "Patterns", "tab.practice": "Practice", "tab.mistakes": "Mistakes",
   },
-  Home: { "home.continue": "Continue button", "home.explore": "Explore tiles" },
+  Home: { "home.continue": "Continue button", "home.explore": "Explore tiles", "home.stats": "Weak points opened from Your progress" },
   Lessons: {
     "lesson.open": "Lessons opened", "lesson.practice": "Practice questions answered", "lesson.check": "Grammar checks started",
     "lesson.checkDone": "Grammar checks finished", "lesson.test": "Lesson tests started", "lesson.testDone": "Lesson tests finished",

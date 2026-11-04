@@ -30,6 +30,7 @@ function renderHome() {
       <div class="card lquiz rl" id="review"></div>
     </div>
     <div class="card lquiz rl" id="roulette"></div>
+    <div class="card ps" id="stats"></div>
     <div class="card home-pages">
       <div class="rl-head"><span class="rl-kicker">🧭 Explore</span></div>
       <div class="home-tiles">
@@ -97,5 +98,8 @@ function renderContinue() {
 
 // The page left open overnight says the right thing in the morning.
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && $("#homeGreeting")) renderHomeDay();
+  if (!document.hidden && $("#homeGreeting")) {
+    renderHomeDay();
+    renderStats();
+  }
 });

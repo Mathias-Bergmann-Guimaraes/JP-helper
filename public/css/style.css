@@ -1504,3 +1504,66 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 @media (prefers-reduced-motion: reduce) {
   .rl-track { transition: none; }
 }
+
+/* ---------------------------------------------------------------- Your progress (Home) */
+
+:root { --chart-xp: #c8402f; }
+:root[data-theme="dark"] { --chart-xp: #e6604a; }
+.ps h3 { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 12px; font-size: .95rem; margin: 0 0 10px; }
+.ps h3 small { font-weight: 400; font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ps-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ps-tile { padding: 10px 14px; border-radius: 12px; background: var(--surface-2); min-width: 0; }
+.ps-label, .ps-sub { font-size: .76rem; color: var(--muted); }
+.ps-value { font-weight: 700; font-size: 1.35rem; line-height: 1.3; }
+.ps-section { margin-top: 20px; min-width: 0; }
+.ps-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
+
+.xpc { position: relative; }
+.xpc-plot { position: relative; height: 140px; margin-left: 26px; }
+.xpc-grid, .xpc-goal { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); }
+.xpc-grid span { position: absolute; right: 100%; top: -.7em; margin-right: 8px; font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.xpc-goal { border-top: 2px solid var(--muted); z-index: 1; pointer-events: none; }
+.xpc-cols { position: absolute; inset: 0; display: flex; align-items: stretch; }
+.xpc-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding: 0 1px; }
+.xpc-col:hover { background: var(--surface-2); }
+.xpc-bar { display: block; width: 100%; max-width: 24px; min-height: 2px; background: var(--chart-xp); border-radius: 4px 4px 0 0; }
+.xpc-axis { display: flex; justify-content: space-between; margin: 4px 0 0 26px; font-size: .72rem; color: var(--muted); }
+.xpc-tip {
+  position: absolute; top: 8px; z-index: 2; pointer-events: none; white-space: nowrap; font-size: .8rem;
+  padding: 6px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow);
+}
+.xpc-tip[hidden] { display: none; }
+.xpc-tip b { display: block; }
+.ps-table { margin-top: 10px; font-size: .85rem; }
+.ps-table summary { cursor: pointer; color: var(--muted); }
+.ps-table table { width: 100%; max-width: 280px; margin-top: 6px; border-collapse: collapse; }
+.ps-table th { font-weight: 500; font-size: .75rem; color: var(--muted); text-align: right; }
+.ps-table td { text-align: right; padding: 3px 0; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.ps-table th:first-child, .ps-table td:first-child { text-align: left; }
+
+.ps-bar { display: flex; gap: 2px; height: 8px; }
+.ps-seg { flex: 1 1 0; min-width: 2px; }
+.ps-seg:first-child { border-radius: 999px 0 0 999px; }
+.ps-seg:last-child { border-radius: 0 999px 999px 0; }
+.ps-seg:only-child { border-radius: 999px; }
+.s3 { background: #94690a; }
+:root[data-theme="dark"] .s3 { background: #ffc83d; }
+.s2 { background: #c48f12; }
+:root[data-theme="dark"] .s2 { background: #b88f2c; }
+.s1 { background: #e0ad3c; }
+:root[data-theme="dark"] .s1 { background: #7d6222; }
+.s0 { background: var(--border); }
+.ps-legend { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: .85rem; }
+.ps-legend li { display: flex; align-items: center; gap: 8px; }
+.ps-legend b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ps-key { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.ps-weak {
+  display: flex; align-items: center; justify-content: space-between; gap: 4px 10px; flex-wrap: wrap; width: 100%; margin-bottom: 6px; padding: 8px 12px; text-align: left; cursor: pointer;
+  font: inherit; color: inherit; background: none; border: 1px solid var(--border); border-radius: 10px;
+}
+.ps-weak:hover { border-color: var(--muted); }
+.ps-weak-name { flex: 1 0 100%; }
+@media (max-width: 700px) {
+  .ps-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ps-duo { grid-template-columns: minmax(0, 1fr); }
+}

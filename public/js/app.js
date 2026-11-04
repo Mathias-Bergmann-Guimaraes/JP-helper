@@ -77,7 +77,7 @@ addEventListener("pagehide", () => {
     const there = s.progress[k];
     const here = mine ? store.get(k) : undefined;
     let v = there;
-    if (here !== undefined && how === "scores") {
+    if (here !== undefined && (how === "scores" || how === "days")) {
       v = { ...there };
       for (const [n, score] of Object.entries(here)) {
         if (score > (v[n] ?? -1)) { v[n] = score; upload[k] = here; }
@@ -158,6 +158,8 @@ function showTab(id) {
   if (id === "lessons") updateLessonPath();
   // Mistakes are added and learned on other pages, so this one is drawn as it opens.
   if (id === "mistakes") renderMistakesPage();
+  // Stats change on every other page, and aren't kept up to date while Home is hidden.
+  if (id === "home") renderStats();
 }
 
 /* ---------------------------------------------------------------- Account */

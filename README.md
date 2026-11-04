@@ -23,6 +23,13 @@ points, most overdue first; **Study more** carries on 5 points at a time past th
 is due you can review the next ones early, which doesn't push their dates back unless you slip.
 Missed days lose nothing, and doing a due point's 5-question check counts as its review.
 
+**Your progress** on the Home tab shows a member their own numbers: XP this week, days studied,
+their longest streak, test average, mistakes fixed and sentences written, a chart of XP per day for
+the last 30 days, their stars across every grammar point, and up to three points with one or two
+stars, one click from their check. The daily XP history keeps a year and only starts counting
+once this feature is running. It is saved with the account like other progress, and isn't shown on
+the admin page.
+
 Every lesson also has a sentence builder: read the English and tap or drag the shuffled colour
 blocks into Japanese order. Sentences that can be reordered accept any natural order, and say which one is the
 most usual. The sentences live in `public/js/builds.js`, where `~` marks the blocks that can swap. In its
@@ -63,7 +70,7 @@ Without access, the server only sends `gate/login.html` (at `/`) and the files i
 data goes to Google. Accounts, invites and sessions are saved in `data/access.json`, which is not
 committed — older copies of that file are upgraded automatically.
 
-Lesson progress (test scores, stars, XP, best streak, the last lesson opened, the sentences a
+Lesson progress (test scores, stars, XP and XP per day, best streak, the last lesson opened, the sentences a
 member wrote, their corrected mistakes, the daily roulettes and the review schedule) is saved per
 account in `data/progress.json`, so it follows a member to every browser they log in on.
 Progress made in a browser before logins existed moves into the first account that logs in
