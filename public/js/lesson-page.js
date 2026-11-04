@@ -26,10 +26,7 @@ function renderLessons() {
       and <b>See it →</b> jumps to the picture that explains it. <b>Check</b> each point with 5 quick questions to earn up to
       three stars, <b>write</b> three sentences of your own for extra XP, then pass the lesson test to finish the
       lesson. Every right answer earns XP.</p>
-      ${hudHTML()}
     </div>
-    <div class="card lquiz rl" id="review"></div>
-    <div class="card lquiz rl" id="roulette"></div>
     <div class="lessons-layout">
       <nav class="card lpath" aria-label="Lessons">
         <div class="book-label">Book I · <span lang="ja">初級 Ⅰ</span></div>
@@ -40,10 +37,7 @@ function renderLessons() {
       <div id="lessonDetail"></div>
     </div>`;
   $$("#lessons [data-l]").forEach((b) => (b.onclick = () => showLesson(+b.dataset.l, true)));
-  renderHud();
   showLesson(lessonState.n);
-  renderReview();
-  renderRoulette();
 }
 
 function linkLabel(link) {
@@ -171,6 +165,7 @@ function updateLessonPath() {
   const count = LESSONS.filter((l) => lessonPassed(l.n)).length;
   $("#lProgressBar").style.width = `${(count / LESSONS.length) * 100}%`;
   $("#lProgressText").textContent = `${count} / ${LESSONS.length}`;
+  renderContinue();
 
   // Keep the selected lesson visible inside the scrollable lesson list.
   const path = $(".lpath");
@@ -181,20 +176,38 @@ function updateLessonPath() {
   }
 }
 
-// Stars so far, plus one button for the most useful next step: the first point without stars,
-// then the test, then the first point that isn't at three stars yet.
+// The most useful next step: the first point without stars, then the test, then the first point
+// that isn't at three stars yet. Nothing once they all are.
+function lessonNextStep(l) {
+  const best = lessonState.tests[l.n];
+  const unchecked = l.points.findIndex((_, i) => !pointStars(l.n, i));
+  const notFull = l.points.findIndex((_, i) => pointStars(l.n, i) < 3);
+  if (unchecked >= 0) return { point: unchecked, text: `Next: check point ${unchecked + 1}` };
+  if (!lessonPassed(l.n)) return { text: best === undefined
+    ? `Next: the lesson test`
+    : `Best test score ${best} / ${TEST_LEN} · need ${PASS_MARK} to finish` };
+  if (notFull >= 0) return { point: notFull, text: `Go for 3 stars on point ${notFull + 1}` };
+  return null;
+}
+
+function goToNextStep(l, next) {
+  if (next.point === undefined) scrollBelowBar($("#lTest").previousElementSibling);
+  else openCheck(l, next.point);
+}
+
+// Show a lesson from another tab. One that's already open keeps any test or practice under way.
+function openLessonTab(l) {
+  showTab("lessons");
+  window.scrollTo({ top: 0 });
+  if (l.n !== lessonState.n) showLesson(l.n);
+}
+
+// Stars so far, plus one button for the most useful next step.
 function renderLessonStatus(l) {
   const best = lessonState.tests[l.n];
   const stars = lessonStars(l);
   const max = l.points.length * 3;
-  const unchecked = l.points.findIndex((_, i) => !pointStars(l.n, i));
-  const notFull = l.points.findIndex((_, i) => pointStars(l.n, i) < 3);
-  let next;
-  if (unchecked >= 0) next = { point: unchecked, html: `Next: check point ${unchecked + 1} ↓` };
-  else if (!lessonPassed(l.n)) next = { html: best === undefined
-    ? `Next: the lesson test ↓`
-    : `Best test score ${best} / ${TEST_LEN} · need ${PASS_MARK} to finish ↓` };
-  else if (notFull >= 0) next = { point: notFull, html: `Go for 3 stars on point ${notFull + 1} ↓` };
+  const next = lessonNextStep(l);
 
   $("#lessonStatus").innerHTML = `
     <div class="lmastery">
@@ -204,12 +217,10 @@ function renderLessonStatus(l) {
     </div>
     <div class="lstatus-row">
       ${lessonPassed(l.n) ? `<span class="lstatus done">✓ Lesson finished · best test score ${best} / ${TEST_LEN}</span>` : ""}
-      ${next ? `<button class="lstatus" id="toNext">${next.html}</button>` : `<span class="lstatus done">★ Every point at three stars</span>`}
+      ${next ? `<button class="lstatus" id="toNext">${next.text} ↓</button>` : `<span class="lstatus done">★ Every point at three stars</span>`}
     </div>`;
   const btn = $("#toNext");
-  if (btn) btn.onclick = () => (next.point === undefined
-    ? scrollBelowBar($("#lTest").previousElementSibling)
-    : openCheck(l, next.point));
+  if (btn) btn.onclick = () => goToNextStep(l, next);
 }
 
 /* ------------------------------------------- Lesson practice & test */

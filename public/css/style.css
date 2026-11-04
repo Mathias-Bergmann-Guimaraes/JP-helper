@@ -1376,6 +1376,34 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
   .rv-row .small { grid-column: 1 / -1; margin-top: -6px; }
 }
 
+/* Home */
+.home-hero h1 { margin-bottom: 4px; }
+.home-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
+.home-duo > .card { margin-bottom: 0; display: flex; flex-direction: column; min-width: 0; }
+.home-duo .rv-foot { margin-top: auto; }
+/* A review under way, or its result, needs the full width. */
+.home-duo:has(#review .lt-top, #review .rl-score) { grid-template-columns: minmax(0, 1fr); }
+.home-continue h2 { font-size: 1.35rem; margin: 0 0 10px; }
+.home-continue .lesson-tags { margin-bottom: 12px; }
+.home-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.home-pages { margin-bottom: 0; }
+.home-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.home-tile {
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; text-align: left;
+  font: inherit; color: var(--text); background: var(--surface-2);
+  border: 1px solid transparent; border-radius: 12px; cursor: pointer;
+}
+.home-tile:hover { border-color: var(--muted); }
+.home-tile b, .home-tile .small { display: block; }
+.home-tile-ja { font-family: var(--jp); font-size: 1.5rem; font-weight: 700; line-height: 1.2; color: var(--accent); }
+@media (max-width: 860px) {
+  .home-duo { grid-template-columns: minmax(0, 1fr); }
+  .home-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .home-tiles { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Daily roulettes */
 .card.rl { margin-bottom: 18px; }
 .rl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }

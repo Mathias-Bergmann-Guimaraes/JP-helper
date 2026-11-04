@@ -1,4 +1,4 @@
-// XP, levels, the daily streak and little celebrations for the Lessons tab. Loaded after app.js
+// XP, levels, the daily streak and little celebrations. Loaded after app.js
 // and uses its helpers. Everything is saved in this browser only (like the test scores).
 
 /* ---------------------------------------------------------------- State */
@@ -165,10 +165,10 @@ const starsHTML = (n, label = true) =>
 
 /* ---------------------------------------------------------------- Keyboard: 1–4 answers */
 
-// The quiz most recently drawn by askIn() answers to the number keys.
+// The quiz most recently drawn by askIn() answers to the number keys, while it's on screen.
 let keyQuiz = null;
 document.addEventListener("keydown", (e) => {
-  if (!keyQuiz || !keyQuiz.isConnected || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!keyQuiz || !keyQuiz.getClientRects().length || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target.closest("input, textarea, select")) return;
   const b = $$(".q-opt", keyQuiz)[+e.key - 1];
   if (b && !b.disabled) { e.preventDefault(); b.click(); }

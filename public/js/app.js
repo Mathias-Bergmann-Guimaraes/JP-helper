@@ -116,13 +116,15 @@ const partsHTML = (parts) => parts.map((p) => `<span class="vp ${p.cls}">${ruby(
 
 /* ---------------------------------------------------------------- Tabs */
 
-const TABS = ["lessons", "structure", "particles", "verbs", "adjectives", "patterns", "practice"];
+const TABS = ["home", "lessons", "structure", "particles", "verbs", "adjectives", "patterns", "practice"];
 
 function showTab(id) {
-  if (!TABS.includes(id)) id = "lessons";
+  if (!TABS.includes(id)) id = "home";
   $$("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
   $$(".panel").forEach((p) => p.classList.toggle("active", p.id === id));
   if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
+  // The lesson list can only scroll to the open lesson while it's on screen.
+  if (id === "lessons") updateLessonPath();
 }
 
 /* ---------------------------------------------------------------- Account */
@@ -208,7 +210,7 @@ function showLinkCard() {
       <button class="btn primary" type="submit">Create login</button>
       <p class="lock-error" id="linkError" role="alert"></p>
     </form>`;
-  $("#lessons").prepend(card);
+  $("#home").prepend(card);
   $("#linkForm").onsubmit = (e) => submitForm(e, "/access/link", "#linkError", (state) => {
     drawAccount(state);
     card.remove();
@@ -1137,6 +1139,7 @@ function init() {
   $$("#tabs button").forEach((b) => (b.onclick = () => { showTab(b.dataset.tab); window.scrollTo({ top: 0 }); }));
   window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 
+  renderHome();
   renderLessons();
   showTab(location.hash.slice(1));
   setupAccount();

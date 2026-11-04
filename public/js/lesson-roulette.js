@@ -1,4 +1,4 @@
-// The daily roulettes on the Lessons tab: a board of four kinds of test on grammar you've already
+// The daily roulettes on the Home tab: a board of four kinds of test on grammar you've already
 // finished. Each pays a bonus the first time it's cleared each day and can be run again for
 // normal XP. Loaded after lesson-mistakes.js and uses its helpers.
 
@@ -369,7 +369,7 @@ function finishRun(r, target, t) {
   $("#rlBack").onclick = backToBoard;
   const open = $("#rlOpen");
   if (open) open.onclick = () => {
-    showLesson(target.l.n);
+    openLessonTab(target.l);
     scrollBelowBar(target.kind === "point" ? $(`#lp-${target.i}`) : $("#lessonDetail"));
   };
 

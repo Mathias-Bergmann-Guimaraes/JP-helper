@@ -16,7 +16,7 @@ bonus on its first clear of the day and can be run again for normal XP, and the 
 them for extra XP.
 
 Spaced review brings each finished grammar point back after 1, 3, 7, 21 and then every 60 days, in
-a "Due today" card above the roulettes, with two mixed questions per point. All right moves a point
+a "Due today" card on the Home tab, beside your current lesson and above the roulettes, with two mixed questions per point. All right moves a point
 up a step, one wrong moves it down a step, and none right starts it over. A day's review stops at 10
 points, most overdue first; **Study more** carries on 5 points at a time past that, and when nothing
 is due you can review the next ones early, which doesn't push their dates back unless you slip.

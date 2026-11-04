@@ -1,4 +1,4 @@
-// Spaced review on the Lessons tab: each finished grammar point comes back at growing intervals.
+// Spaced review on the Home tab: each finished grammar point comes back at growing intervals.
 // A day's review stops at REVIEW_LIMIT points, and "Study more" keeps going in small batches for
 // anyone who wants to. Loaded after lesson-roulette.js and uses its helpers.
 
