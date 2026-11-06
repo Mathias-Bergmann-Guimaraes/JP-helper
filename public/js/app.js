@@ -858,14 +858,17 @@ function renderPatterns() {
       </div>
       <input type="search" class="pat-search" id="patSearch" placeholder="Search in English or Japanese: must, because, ている…" aria-label="Search the patterns">
       <p class="small muted pat-found" id="patFound" hidden></p>
+      <p class="small muted pat-cmp-hint">Mixing up similar ones? <button class="pat-cmp-link" id="patCmpLink">See “Which one do I use?” ↓</button></p>
     </div>
-
-    ${compareCardHTML()}
 
     <div class="card pat-picker">
       <div class="step-label">Pick a verb — every pattern below updates</div>
-      <div class="chips">
-        ${VERBS.map((v, i) => `<button class="chip" data-pv="${i}" style="--gc:${GROUPS[v.group].color}" lang="ja">${ruby(v.w)}</button>`).join("")}
+      <div class="pat-vgroups">
+        ${Object.entries(GROUPS).map(([g, info]) => `
+          <div class="chips pat-vgroup" style="--gc:${info.color}">
+            <span class="pat-vgroup-name">${info.label}</span>
+            ${VERBS.map((v, i) => v.group === g ? `<button class="chip" data-pv="${i}" lang="ja">${ruby(v.w)}</button>` : "").join("")}
+          </div>`).join("")}
       </div>
     </div>
 
@@ -874,13 +877,17 @@ function renderPatterns() {
         <h2 lang="ja">${g.label}</h2>
         <p class="muted small" lang="ja">${g.about}</p>
       </section>
-      ${inGroup(g).map(patternCardHTML).join("")}`).join("")}`;
+      ${inGroup(g).map(patternCardHTML).join("")}`).join("")}
+
+    ${compareCardHTML()}`;
 
   $$("#patterns [data-pv]").forEach((b) => (b.onclick = () => { track("explore.patterns"); patVerb = +b.dataset.pv; updatePatternVerb(); }));
   $$("#cmpCard [data-cmp]").forEach((b) => (b.onclick = () => showCompare(b.dataset.cmp)));
   $$("#patterns [data-practice]").forEach((b) => (b.onclick = () => practicePattern(b.dataset.practice)));
-  $$("#patterns [data-see-cmp]").forEach((b) => (b.onclick = () => openCompare(b.dataset.seeCmp)));
+  $$("#patterns [data-see-cmp]").forEach((b) => (b.onclick = () => jumpToCompare(`<span lang="ja">${$(".pat-title", b.closest(".pat-card")).innerHTML}</span>`, b.dataset.seeCmp)));
+  wireCompareBack();
   $("#patSearch").oninput = filterPatterns;
+  $("#patCmpLink").onclick = () => jumpToCompare("the top");
   $$("#patterns [data-jump]").forEach((b) => (b.onclick = () => {
     const head = $("#patg-" + b.dataset.jump);
     const picker = $(".pat-picker");
@@ -892,7 +899,7 @@ function renderPatterns() {
 
 // Everything a search can match on a card.
 const patSearchText = (p) => [
-  plain(p.title), kana(p.title), plain(p.ending), kana(p.ending), p.name, p.meaning, p.en.replace(/\{\w+\}/g, ""),
+  plain(p.title), kana(p.title), p.tag || "", plain(p.ending), kana(p.ending), p.name, p.meaning, p.en.replace(/\{\w+\}/g, ""),
   ...p.forms.flatMap((f) => [plain(f.e), kana(f.e), f.m]),
 ].join(" ").toLowerCase();
 
@@ -908,8 +915,6 @@ function filterPatterns() {
     const any = VERB_PATTERNS.some((p) => patGroupOf(p) === g.id && $("#pat-" + p.id).style.display !== "none");
     $("#patg-" + g.id).style.display = any ? "" : "none";
   });
-  // The comparisons would push the results off the screen.
-  $("#cmpCard").style.display = words.length ? "none" : "";
   const note = $("#patFound");
   note.hidden = !words.length;
   note.textContent = found ? `${found} of ${VERB_PATTERNS.length} patterns match` : "Nothing matches. Try another word, like “want” or “たい”.";
@@ -932,7 +937,7 @@ function patternCardHTML(p) {
       <summary class="pat-head">
         <span class="pat-title" lang="ja">${ruby(p.title)}</span>
         <div class="pat-sum"><div class="pd-name">${p.name}</div><div class="pat-meaning">${p.meaning}</div></div>
-        <span class="pat-lesson">Lesson ${p.lesson}</span>
+        <span class="pat-lesson">${p.tag ? `<span class="pat-tag">${p.tag}</span> ` : ""}Lesson ${p.lesson}</span>
       </summary>
       <div class="pat-top">
         <div class="pd-visual">
@@ -1109,7 +1114,7 @@ function makePatternQ(patId) {
   const notWrong = [p.base, ...(p.avoid || []), ...(p.base === "plain" ? ["dict", "ta"] : [])];
   const wrongBases = ["te", "stem", "nai", "dict", "ta"].filter((b) => !notWrong.includes(b));
   const likely = [
-    ...wrongBases.map((b) => ({ text: build(b), why: `That uses the <b>${BASE_NAME[b]}</b>, but <b lang="ja">${ruby(p.title)}</b> needs the <b>${BASE_NAME[p.base]}</b>.` })),
+    ...wrongBases.map((b) => ({ text: build(b), why: `That uses the <b>${BASE_NAME[b]}</b>, but <b lang="ja">${patTitleHTML(p)}</b> needs the <b>${BASE_NAME[p.base]}</b>.` })),
     { text: build(p.base, other), why: `That's the ${BASE_NAME[p.base]} built with <b>${GROUPS[other].label}</b> rules — but <b lang="ja">${plain(v.w)}</b> is <b>${g.label}</b>.` },
   ];
   const backup = wrongBases.filter((b) => b !== "dict").map((b) => ({
@@ -1129,7 +1134,7 @@ function makePatternQ(patId) {
   }[p.base]();
 
   return {
-    prompt: `<div class="q-sentence" lang="ja">${ruby(v.w)} <span class="arrow">+</span> <span class="q-pat" style="--pc:${p.color}">${ruby(p.title)}</span></div>
+    prompt: `<div class="q-sentence" lang="ja">${ruby(v.w)} <span class="arrow">+</span> <span class="q-pat" style="--pc:${p.color}">${patTitleHTML(p)}</span></div>
       ${hintEn(`“${patEn(p, v)}”`)}`,
     options: shuffle([{ text: correct }, ...wrong]).map((o) => ({
       html: ruby(o.text), value: o.text, correct: o.text === correct, why: o.why,
@@ -1139,7 +1144,7 @@ function makePatternQ(patId) {
         <div>
           <div class="conj-word" lang="ja" style="--gc:${g.color}">${partsHTML(patternBase(v, p.base))}<span class="vp pat">${ruby(p.ending)}</span></div>
           ${chosen.correct ? "" : `<p>${chosen.why}</p>`}
-          <p><b lang="ja">${ruby(p.title)}</b> ${PATTERN_BASE_LABEL[p.base].replace("Built on", "is built on")}. ${baseForm}</p>
+          <p><b lang="ja">${patTitleHTML(p)}</b> ${PATTERN_BASE_LABEL[p.base].replace("Built on", "is built on")}. ${baseForm}</p>
           <p class="small muted"><span class="gbadge" style="--gc:${g.color}">${g.label}</span> ${p.name}: ${p.meaning}</p>
         </div>
       </div>`,

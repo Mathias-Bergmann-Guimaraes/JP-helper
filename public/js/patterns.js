@@ -19,6 +19,10 @@ const PATTERN_GROUPS = [
 ];
 const patGroupOf = (p) => (p.base === "naif" ? "nai" : p.base);
 
+// tag: a little English, for patterns that share a Japanese title or need telling apart. Not part of the pattern.
+const patTitleHTML = (p) => ruby(p.title) + (p.tag ? ` <span class="pat-tag" lang="en">${p.tag}</span>` : "");
+const patTitleText = (p) => plain(p.title) + (p.tag ? ` (${p.tag})` : "");
+
 const BASE_LIT = {
   stem: ["ます-stem", "(the verb)"], te: ["て-form", "doing"], nai: ["ない-form − ない", "(not) do"], naif: ["ない-form", "not doing"],
   dict: ["dictionary form", "(the verb)"], ta: ["た-form", "did"], plain: ["plain form", "(the verb)"], vol: ["volitional", "let's do"],
@@ -191,7 +195,7 @@ const VERB_PATTERNS = [
     ],
     forms: [["A ながら B", "B is the main action, A is on the side"], ["〜ながら働きます", "work while doing"]],
     tip: "Both actions need the same person doing them. For two different people, use 〜ている間に instead." }),
-  patDef({ id: "soulook", lesson: 43, title: "〜そうです (looks)", base: "stem", ending: "そうです", en: "looks like it's about to {v}",
+  patDef({ id: "soulook", lesson: 43, title: "〜そうです", tag: "looks", base: "stem", ending: "そうです", en: "looks like it's about to {v}",
     name: "Looks like it's about to", meaning: "looks like · seems about to",
     caption: "What your eyes are telling you",
     idea: "ます-stem + そうです says what you can see coming. It's your own impression from looking, not something you heard.",
@@ -396,7 +400,7 @@ const VERB_PATTERNS = [
     ],
     forms: [["V dict まえに", "before doing"], ["N のまえに", "before a noun: 食事のまえに"], ["time まえに", "ago: 3年まえに"]],
     tip: "Never the た-form here: 食べたまえに is wrong, even when you're talking about the past." }),
-  patDef({ id: "to", lesson: 23, title: "〜と (whenever)", base: "dict", ending: "と", en: "whenever (I) {v}, …", avoid: ["te"],
+  patDef({ id: "to", lesson: 23, title: "〜と", tag: "whenever", base: "dict", ending: "と", en: "whenever (I) {v}, …", avoid: ["te"],
     name: "Whenever · automatic result", meaning: "whenever · if… then always",
     caption: "Press the button, and it always happens",
     idea: "Dictionary form + と: when the first thing happens, the second follows automatically. It's for nature, machines, habits and directions.",
@@ -635,7 +639,7 @@ const VERB_PATTERNS = [
     ],
     forms: [["〜はずです", "should"], ["〜ないはずです", "should not"], ["〜はずがありません", "there's no way that…"]],
     tip: "はず is what you expect, not what someone ought to do. For advice, use 〜ほうがいい." }),
-  patDef({ id: "souhear", lesson: 47, title: "〜そうです (I hear)", base: "plain", ending: "そうです", en: "I hear (someone will) {v}",
+  patDef({ id: "souhear", lesson: 47, title: "〜そうです", tag: "I hear", base: "plain", ending: "そうです", en: "I hear (someone will) {v}",
     name: "Hearsay", meaning: "I hear that · apparently",
     caption: "It reached you from someone else",
     idea: "Plain form + そうです passes on what you heard or read. It looks like the “looks like” そうです, but it attaches to a different form.",

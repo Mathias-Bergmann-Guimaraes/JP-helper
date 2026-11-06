@@ -95,7 +95,7 @@ const COMPARISONS = [
   },
 ];
 
-const compareUI = { id: null, deck: [], score: 0, total: 0 };
+const compareUI = { id: null, deck: [], score: 0, total: 0, backY: null };
 
 const compareCardHTML = () => `
   <div class="card cmp-card" id="cmpCard">
@@ -105,6 +105,7 @@ const compareCardHTML = () => `
       ${COMPARISONS.map((c) => `<button class="chip" data-cmp="${c.id}" lang="ja">${ruby(c.title)}</button>`).join("")}
     </div>
     <div id="cmpBody"></div>
+    <button class="btn cmp-back" id="cmpBack" hidden></button>
   </div>`;
 
 function showCompare(id) {
@@ -163,8 +164,28 @@ function nextCompareQ(c) {
   });
 }
 
-// From a pattern card's "Compare" button.
-function openCompare(id) {
-  if (compareUI.id !== id) showCompare(id);
+// Jump to the comparisons, leaving a button that goes back to where you were.
+// label: what the button calls that place, as HTML. id: the comparison to open, if any.
+function jumpToCompare(label, id) {
+  compareUI.backY = scrollY;
+  if (id && compareUI.id !== id) showCompare(id);
+  const back = $("#cmpBack");
+  back.innerHTML = `← Back to ${label}`;
+  back.hidden = false;
   scrollBelowBar($("#cmpCard"));
+}
+
+function hideCompareBack() {
+  compareUI.backY = null;
+  $("#cmpBack").hidden = true;
+}
+
+function wireCompareBack() {
+  $("#cmpBack").onclick = () => {
+    const y = compareUI.backY;
+    hideCompareBack();
+    window.scrollTo({ top: y });
+  };
+  // Scrolled away from the comparisons by hand, or left the tab: the button has done its job.
+  new IntersectionObserver(([e]) => { if (!e.isIntersecting) hideCompareBack(); }).observe($("#cmpCard"));
 }

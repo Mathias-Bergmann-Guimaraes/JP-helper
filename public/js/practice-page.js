@@ -197,7 +197,7 @@ const QUIZ_KINDS = {
   },
   patterns: {
     name: "Patterns", kind: "Build the pattern",
-    focus: () => VERB_PATTERNS.map((p) => [p.id, plain(p.title), true]),
+    focus: () => VERB_PATTERNS.map((p) => [p.id, patTitleText(p), true]),
     make: (f) => makePatternQ(f || undefined),
   },
   mixed: { name: "Mixed", kind: "", focus: () => [], make: () => null },

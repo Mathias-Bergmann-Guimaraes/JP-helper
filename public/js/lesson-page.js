@@ -53,7 +53,7 @@ function renderLessons() {
 
 function linkLabel(link) {
   if (link.tab === "particles") return `Particles: <span lang="ja">${PARTICLES.find((p) => p.id === link.id).p}</span>`;
-  if (link.tab === "patterns") return `Patterns: <span lang="ja">${ruby(VERB_PATTERNS.find((p) => p.id === link.id).title)}</span>`;
+  if (link.tab === "patterns") return `Patterns: <span lang="ja">${patTitleHTML(VERB_PATTERNS.find((p) => p.id === link.id))}</span>`;
   if (link.tab === "verbs") return link.keigo ? "Verbs: Polite language" : `Verbs: ${FORM[link.form].label}`;
   if (link.tab === "adjectives") return "Adjectives";
   return "Sentence blocks";
