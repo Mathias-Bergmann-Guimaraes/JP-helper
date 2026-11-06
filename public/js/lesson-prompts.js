@@ -173,6 +173,7 @@ function updateAiPrompt() {
 
 // The clipboard API needs https or localhost; on a plain-http LAN address fall back to execCommand.
 async function copyAiPrompt() {
+  track("chatbot.copy");
   const ta = $("#aiText");
   const btn = $("#aiCopy");
   let ok = false;

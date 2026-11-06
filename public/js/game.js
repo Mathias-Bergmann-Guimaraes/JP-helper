@@ -1,5 +1,5 @@
-// XP, levels, the daily streak and little celebrations for the Lessons tab. Loaded after app.js
-// and uses its helpers. Everything is saved in this browser only (like the test scores).
+// XP, levels, the daily streak and little celebrations. Loaded after app.js
+// and uses its helpers. Saved per account, like the test scores (see Progress in app.js).
 
 /* ---------------------------------------------------------------- State */
 
@@ -18,6 +18,15 @@ const game = Object.assign({ xp: 0, day: null, dayXp: 0, streak: 0 }, store.get(
 
 const dayStr = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const yesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); return dayStr(d); };
+
+// XP earned per day, a year of it, for the chart on Home: { [day]: xp }. History starts with the
+// last day `game` remembers, which may also know more than this browser if another device earned it.
+const XP_HISTORY_DAYS = 365;
+const xpDays = store.get("xpDays", {});
+if (game.day && game.dayXp > (xpDays[game.day] || 0)) {
+  xpDays[game.day] = game.dayXp;
+  store.set("xpDays", xpDays);
+}
 
 // Each level needs a little more XP than the one before: 100, 140, 180…
 const levelNeed = (lv) => 60 + 40 * lv;
@@ -39,14 +48,20 @@ function addXP(n, from) {
     game.streak = game.day === yesterday() ? game.streak + 1 : 1;
     game.day = today;
     game.dayXp = 0;
+    const oldest = addDays(today, -XP_HISTORY_DAYS);
+    for (const day of Object.keys(xpDays)) if (day < oldest) delete xpDays[day];
   }
   const hadGoal = game.dayXp >= DAILY_GOAL;
   game.xp += n;
   game.dayXp += n;
+  xpDays[today] = (xpDays[today] || 0) + n;
   store.set("game", game);
+  store.set("xpDays", xpDays);
 
   if (from) floatXP(from, n);
   renderHud();
+  renderStats();
+  renderPracticeTiles();
   const after = levelOf(game.xp).lv;
   if (after > before) {
     const [, jp, en] = rankOf(after);
@@ -165,10 +180,10 @@ const starsHTML = (n, label = true) =>
 
 /* ---------------------------------------------------------------- Keyboard: 1–4 answers */
 
-// The quiz most recently drawn by askIn() answers to the number keys.
+// The quiz most recently drawn by askIn() answers to the number keys, while it's on screen.
 let keyQuiz = null;
 document.addEventListener("keydown", (e) => {
-  if (!keyQuiz || !keyQuiz.isConnected || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!keyQuiz || !keyQuiz.getClientRects().length || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target.closest("input, textarea, select")) return;
   const b = $$(".q-opt", keyQuiz)[+e.key - 1];
   if (b && !b.disabled) { e.preventDefault(); b.click(); }

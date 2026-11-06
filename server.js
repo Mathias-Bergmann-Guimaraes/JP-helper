@@ -30,6 +30,7 @@ const isOpen = (file) => {
 };
 const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : path.join(__dirname, "data", "access.json");
 const PROGRESS_FILE = path.join(path.dirname(DATA_FILE), "progress.json");
+const USAGE_FILE = path.join(path.dirname(DATA_FILE), "usage.json");
 
 const COOKIE = "jpg_access";
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
@@ -436,11 +437,14 @@ function touch(id) {
 //            answered right since): the latest list of each name wins.
 //   dated  — { [name]: { step, last, due } } (spaced review of a grammar point): the entry reviewed
 //            most recently wins, so one device can't undo the reviews made on another.
+//   days   — { [YYYY-MM-DD]: number } (XP per day, for the member's own chart on Home): each day
+//            only ever goes up, and days older than MAX_HISTORY_DAYS are dropped.
 // The page gets this list too (in progress.js), so adding a key here is all it takes.
 const PROGRESS_MERGE = {
   lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest", sentences: "texts",
-  mistakes: "notes", roulette: "latest", review: "dated", reviewDay: "latest", bigTests: "scores",
+  mistakes: "notes", roulette: "latest", review: "dated", reviewDay: "latest", xpDays: "days", bigTests: "scores",
 };
+const MAX_HISTORY_DAYS = 366;
 const MAX_PROGRESS_BODY = 512 * 1024;
 const MAX_LATEST = 2 * 1024;
 const MAX_SCORES = 1000;
@@ -495,9 +499,15 @@ function mergeProgress(how, saved, v) {
     }
     return Object.keys(out).length <= MAX_SCORES ? out : undefined;
   }
+  const nameRe = how === "days" ? DAY_RE : SCORE_NAME_RE;
   for (const [name, score] of Object.entries(v)) {
-    if (!SCORE_NAME_RE.test(name) || !isScore(score)) return undefined;
+    if (!nameRe.test(name) || !isScore(score)) return undefined;
     out[name] = Math.max(out[name] ?? -1, score);
+  }
+  if (how === "days") {
+    const oldest = new Date();
+    oldest.setDate(oldest.getDate() - MAX_HISTORY_DAYS);
+    for (const day of Object.keys(out)) if (day < serverDay(oldest)) delete out[day];
   }
   return Object.keys(out).length <= MAX_SCORES ? out : undefined;
 }
@@ -516,6 +526,96 @@ async function handleProgress(req, res, me) {
   progress[me.id] = p;
   saveJson(PROGRESS_FILE, progress);
   sendJson(res, 200, progressOf(me.id));
+}
+
+/* ---------------------------------------------------------------- Usage totals */
+
+// What the admin page's Usage view shows: which features of the site get used. Every feature is
+// listed here, so ones nobody touches still show up, and anything else a browser sends is ignored.
+// The page reports a name with track("name"), and only the name: never what was typed.
+const USAGE_GROUPS = {
+  Pages: {
+    "tab.home": "Home", "tab.lessons": "Lessons", "tab.structure": "Sentences", "tab.particles": "Particles", "tab.verbs": "Verbs",
+    "tab.adjectives": "Adjectives", "tab.patterns": "Patterns", "tab.practice": "Practice", "tab.mistakes": "Mistakes",
+  },
+  Home: { "home.continue": "Continue button", "home.explore": "Explore tiles", "home.stats": "Weak points opened from Your progress" },
+  Lessons: {
+    "lesson.open": "Lessons opened", "lesson.practice": "Practice questions answered", "lesson.check": "Grammar checks started",
+    "lesson.checkDone": "Grammar checks finished", "lesson.test": "Lesson tests started", "lesson.testDone": "Lesson tests finished",
+  },
+  "Writing and chatbot": {
+    "write.open": "Writing box opened", "write.done": "Written sentences saved",
+    "chatbot.copy": "Chatbot prompts copied", "chatbot.answer": "Chatbot answers pasted",
+  },
+  "Sentence builder": { "build.blocks": "Block sentences checked", "build.text": "Free text sentences entered" },
+  "Review and mistakes": {
+    "review.daily": "Daily reviews started", "review.more": "Extra reviews started", "review.done": "Reviews finished",
+    "mistakes.round": "Mistake rounds started",
+  },
+  Roulettes: {
+    "roulette.review": "Review started", "roulette.lesson": "Lesson started", "roulette.mixed": "Mixed started",
+    "roulette.weak": "Weak spot started", "roulette.build": "Build started", "roulette.forms": "Forms started", "roulette.done": "Roulettes finished",
+  },
+  "Practice tab": {
+    "practice.roulette": "Roulettes opened", "practice.write": "Guided writing rounds started", "practice.build": "Build opened", "practice.quiz": "Quick quiz opened",
+    "quiz.particles": "Particle questions answered", "quiz.verbs": "Verb form questions answered", "quiz.adjectives": "Adjective questions answered", "quiz.patterns": "Pattern questions answered",
+  },
+  "Reference pages": {
+    "explore.sentences": "Example sentences browsed", "explore.particles": "Particles opened", "explore.verbs": "Verbs or forms switched",
+    "explore.adjectives": "Adjectives switched", "explore.patterns": "Pattern verbs switched",
+  },
+  Settings: { "setting.furigana": "Furigana switched", "setting.theme": "Theme switched" },
+};
+const USAGE_FEATURES = new Set(Object.values(USAGE_GROUPS).flatMap(Object.keys));
+const USAGE_DAYS = 90;
+const MAX_USES_PER_SEND = 1000;
+
+// data/usage.json holds anonymous totals, and is not linked to anyone:
+//   { [day]: { active: people that day, features: { [feature]: { uses, people } } } }
+// Telling one person from another takes a list of who has been counted today, which stays in memory
+// and is gone at midnight. A restart forgets it too, so someone can be counted twice on that day.
+const usage = loadJson(USAGE_FILE);
+let countedToday = { day: null, members: new Set(), features: new Map() };
+
+const serverDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function dropOldUsage() {
+  const d = new Date();
+  d.setDate(d.getDate() - USAGE_DAYS + 1);
+  const first = serverDay(d);
+  for (const day of Object.keys(usage)) if (day < first) delete usage[day];
+}
+dropOldUsage();
+
+// Counts someone once per day and thing: returns 1 the first time, then 0.
+function firstToday(set, id) {
+  if (set.has(id)) return 0;
+  set.add(id);
+  return 1;
+}
+
+// A browser's counts since it last sent them: { [feature]: uses }.
+async function handleUsage(req, res, me) {
+  const b = await body(req, res);
+  if (!b) return;
+  const used = Object.entries(b).filter(([f, n]) => USAGE_FEATURES.has(f) && Number.isInteger(n) && n > 0 && n <= MAX_USES_PER_SEND);
+  if (!used.length) return sendJson(res, 200, { ok: true });
+
+  const day = serverDay();
+  if (countedToday.day !== day) {
+    countedToday = { day, members: new Set(), features: new Map() };
+    dropOldUsage();
+  }
+  const today = (usage[day] ||= { active: 0, features: {} });
+  today.active += firstToday(countedToday.members, me.id);
+  for (const [f, n] of used) {
+    if (!countedToday.features.has(f)) countedToday.features.set(f, new Set());
+    const total = (today.features[f] ||= { uses: 0, people: 0 });
+    total.uses += n;
+    total.people += firstToday(countedToday.features.get(f), me.id);
+  }
+  saveJson(USAGE_FILE, usage);
+  sendJson(res, 200, { ok: true });
 }
 
 const ACCESS_ROUTES = {
@@ -541,6 +641,11 @@ const publicServer = http.createServer(async (req, res) => {
     if (!member) return sendJson(res, 403, { error: "Access required" });
     if (req.method !== "POST") return sendText(res, 405, "Method not allowed");
     return handleProgress(req, res, me);
+  }
+  if (pathname === "/usage") {
+    if (!member) return sendJson(res, 403, { error: "Access required" });
+    if (req.method !== "POST") return sendText(res, 405, "Method not allowed");
+    return handleUsage(req, res, me);
   }
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Method not allowed");
 
@@ -600,6 +705,9 @@ const adminServer = http.createServer(async (req, res) => {
       .map(([id, inv]) => ({ id, ...inv }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return sendJson(res, 200, list);
+  }
+  if (req.method === "GET" && pathname === "/api/usage") {
+    return sendJson(res, 200, { today: serverDay(), keptDays: USAGE_DAYS, groups: USAGE_GROUPS, days: usage });
   }
   if (req.method !== "POST" || !ADMIN_ACTIONS[pathname]) return sendText(res, 404, "Not found");
 

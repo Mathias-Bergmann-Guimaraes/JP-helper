@@ -16,7 +16,7 @@ const pointStars = (n, i) => lessonState.stars[`${n}.${i}`] || 0;
 const lessonStars = (l) => l.points.reduce((s, _, i) => s + pointStars(l.n, i), 0);
 
 // XP per right answer, and bonuses for finishing things.
-const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10, write: 20, rewrite: 6, build: 4, big: 100, book: 300, rebig: 20 };
+const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10, write: 20, rewrite: 6, build: 4, compose: 6, two: 10, big: 100, book: 300, rebig: 20 };
 const COMBO_AT = 5;
 
 function renderLessons() {
@@ -29,10 +29,7 @@ function renderLessons() {
       three stars, <b>write</b> three sentences of your own for extra XP, then pass the lesson test to finish the
       lesson. Every few lessons a <b>big test</b> covers everything since the last one, and passing it finishes all of
       those lessons at once. Each book ends with a final. Every right answer earns XP.</p>
-      ${hudHTML()}
     </div>
-    <div class="card lquiz rl" id="review"></div>
-    <div class="card lquiz rl" id="roulette"></div>
     <div class="lessons-layout">
       <nav class="card lpath" aria-label="Lessons">
         <div class="book-label">Book I · <span lang="ja">初級 Ⅰ</span></div>
@@ -45,10 +42,7 @@ function renderLessons() {
     </div>`;
   $$("#lessons [data-l]").forEach((b) => (b.onclick = () => showLesson(+b.dataset.l, true)));
   $$("#lessons [data-big]").forEach((b) => (b.onclick = () => showBig(b.dataset.big, true)));
-  renderHud();
   showLesson(lessonState.n);
-  renderReview();
-  renderRoulette();
 }
 
 function linkLabel(link) {
@@ -78,6 +72,7 @@ function goTo(link) {
 function showLesson(n, scroll) {
   const l = LESSONS.find((x) => x.n === n) || LESSONS[0];
   closeBig();
+  if (l.n !== lessonState.n) track("lesson.open");
   lessonState.n = l.n;
   store.set("lesson", l.n);
   const prev = LESSONS.find((x) => x.n === l.n - 1);
@@ -179,6 +174,7 @@ function updateLessonPath() {
   $("#lProgressBar").style.width = `${(count / LESSONS.length) * 100}%`;
   $("#lProgressText").textContent = `${count} / ${LESSONS.length}`;
   updateBigNodes();
+  renderContinue();
 
   // Keep the selected lesson visible inside the scrollable lesson list.
   const path = $(".lpath");
@@ -189,20 +185,38 @@ function updateLessonPath() {
   }
 }
 
-// Stars so far, plus one button for the most useful next step: the first point without stars,
-// then the test, then the first point that isn't at three stars yet.
+// The most useful next step: the first point without stars, then the test, then the first point
+// that isn't at three stars yet. Nothing once they all are.
+function lessonNextStep(l) {
+  const best = lessonState.tests[l.n];
+  const unchecked = l.points.findIndex((_, i) => !pointStars(l.n, i));
+  const notFull = l.points.findIndex((_, i) => pointStars(l.n, i) < 3);
+  if (unchecked >= 0) return { point: unchecked, text: `Next: check point ${unchecked + 1}` };
+  if (!lessonPassed(l.n)) return { text: best === undefined
+    ? `Next: the lesson test`
+    : `Best test score ${best} / ${TEST_LEN} · need ${PASS_MARK} to finish` };
+  if (notFull >= 0) return { point: notFull, text: `Go for 3 stars on point ${notFull + 1}` };
+  return null;
+}
+
+function goToNextStep(l, next) {
+  if (next.point === undefined) scrollBelowBar($("#lTest").previousElementSibling);
+  else openCheck(l, next.point);
+}
+
+// Show a lesson from another tab. One that's already open keeps any test or practice under way.
+function openLessonTab(l) {
+  showTab("lessons");
+  window.scrollTo({ top: 0 });
+  if (l.n !== lessonState.n) showLesson(l.n);
+}
+
+// Stars so far, plus one button for the most useful next step.
 function renderLessonStatus(l) {
   const best = lessonState.tests[l.n];
   const stars = lessonStars(l);
   const max = l.points.length * 3;
-  const unchecked = l.points.findIndex((_, i) => !pointStars(l.n, i));
-  const notFull = l.points.findIndex((_, i) => pointStars(l.n, i) < 3);
-  let next;
-  if (unchecked >= 0) next = { point: unchecked, html: `Next: check point ${unchecked + 1} ↓` };
-  else if (!lessonPassed(l.n)) next = { html: best === undefined
-    ? `Next: the lesson test ↓`
-    : `Best test score ${best} / ${TEST_LEN} · need ${PASS_MARK} to finish ↓` };
-  else if (notFull >= 0) next = { point: notFull, html: `Go for 3 stars on point ${notFull + 1} ↓` };
+  const next = lessonNextStep(l);
 
   $("#lessonStatus").innerHTML = `
     <div class="lmastery">
@@ -213,12 +227,10 @@ function renderLessonStatus(l) {
     <div class="lstatus-row">
       ${lessonTestPassed(l.n) ? `<span class="lstatus done">✓ Lesson finished · best test score ${best} / ${TEST_LEN}</span>`
         : lessonPassed(l.n) ? `<span class="lstatus done">✓ Lesson finished by passing ${finishedByBig(l.n).name}</span>` : ""}
-      ${next ? `<button class="lstatus" id="toNext">${next.html}</button>` : `<span class="lstatus done">★ Every point at three stars</span>`}
+      ${next ? `<button class="lstatus" id="toNext">${next.text} ↓</button>` : `<span class="lstatus done">★ Every point at three stars</span>`}
     </div>`;
   const btn = $("#toNext");
-  if (btn) btn.onclick = () => (next.point === undefined
-    ? scrollBelowBar($("#lTest").previousElementSibling)
-    : openCheck(l, next.point));
+  if (btn) btn.onclick = () => goToNextStep(l, next);
 }
 
 /* ------------------------------------------- Lesson practice & test */
@@ -382,6 +394,7 @@ function nextLessonPractice(l) {
   }
   $("#lpNext").hidden = true;
   askIn($("#lpQ"), q, (ok, b) => {
+    track("lesson.practice");
     lp.total++;
     if (ok) { lp.score++; lp.streak++; } else lp.streak = 0;
     // From COMBO_AT right in a row, every answer is worth double.
@@ -419,7 +432,7 @@ function showTestIntro(l) {
         <button class="btn primary" id="ltStart">${best === undefined ? "Start the test" : "Take the test again"}</button>
       </div>
     </div>`;
-  $("#ltStart").onclick = () => runTest(l, { qs: buildTest(l), i: 0, results: [] });
+  $("#ltStart").onclick = () => { track("lesson.test"); runTest(l, { qs: buildTest(l), i: 0, results: [] }); };
 }
 
 function runTest(l, t) {
@@ -456,6 +469,7 @@ function saveTestScore(l, score) {
 }
 
 function finishTest(l, t) {
+  track("lesson.testDone");
   const score = t.results.filter(Boolean).length;
   const passed = score >= PASS_MARK;
   const wasPassed = lessonPassed(l.n);
@@ -486,7 +500,7 @@ function finishTest(l, t) {
       ${passed && next ? `<button class="btn${big ? "" : " primary"}" id="ltNextLesson">Lesson ${next.n}: ${next.title} ›</button>` : ""}
       ${passed && big ? `<button class="btn primary" id="ltBig">${big.name} ›</button>` : ""}
     </div>`;
-  $("#ltRetry").onclick = () => runTest(l, { qs: buildTest(l), i: 0, results: [] });
+  $("#ltRetry").onclick = () => { track("lesson.test"); runTest(l, { qs: buildTest(l), i: 0, results: [] }); };
   const go = $("#ltNextLesson");
   if (go) go.onclick = () => showLesson(next.n, true);
   const toBig = $("#ltBig");
@@ -521,6 +535,7 @@ function drawPointStars(l, i) {
 }
 
 function openCheck(l, i) {
+  track("lesson.check");
   // One check (or writing box) open at a time.
   l.points.forEach((_, j) => { closeWrite(l, j); if (j !== i) closeCheck(l, j); });
   const card = $(`#lp-${i}`);
@@ -583,6 +598,7 @@ function saveCheckStars(l, i, score) {
 }
 
 function finishCheck(l, i, t) {
+  track("lesson.checkDone");
   const score = t.results.filter(Boolean).length;
   const { stars, old, gained } = saveCheckStars(l, i, score);
   const nextPoint = l.points.findIndex((_, j) => j > i && pointStars(l.n, j) < 3);
@@ -602,7 +618,7 @@ function finishCheck(l, i, t) {
         ? `<button class="btn primary" data-a="next">Next point: <span lang="ja">${l.points[nextPoint].g}</span> ›</button>`
         : `<button class="btn primary" data-a="test">On to the lesson test ↓</button>`}
     </div>`;
-  $("[data-a=again]", box).onclick = () => runCheck(l, i, { qs: buildCheck(l, i), i: 0, results: [] });
+  $("[data-a=again]", box).onclick = () => { track("lesson.check"); runCheck(l, i, { qs: buildCheck(l, i), i: 0, results: [] }); };
   $("[data-a=next], [data-a=test]", box).onclick = (e) => {
     if (e.currentTarget.dataset.a === "next") openCheck(l, nextPoint);
     else { closeCheck(l, i); scrollBelowBar($("#lTest").previousElementSibling); }

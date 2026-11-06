@@ -4,17 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Bunpō · Members</title>
+  <title>Bunpō · Admin</title>
   <style>
     :root {
       --bg: #f6f4ef; --surface: #ffffff; --surface-2: #f0ede6; --text: #1d2025; --muted: #6a6f78;
-      --border: #e2ded4; --accent: #c8402f; --good: #1a9a52; --bad: #d63a3a; --wait: #d98200;
+      --border: #e2ded4; --accent: #c8402f; --good: #1a9a52; --bad: #d63a3a; --wait: #d98200; --series: #2a78d6;
       --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 20px rgba(0, 0, 0, .05);
     }
     @media (prefers-color-scheme: dark) {
       :root {
         --bg: #131519; --surface: #1b1e23; --surface-2: #252930; --text: #e9e7e2; --muted: #9ba1aa;
-        --border: #30353d; --accent: #ff7a66; --good: #3ccf7f; --bad: #ff6b6b; --wait: #ffad33;
+        --border: #30353d; --accent: #ff7a66; --good: #3ccf7f; --bad: #ff6b6b; --wait: #ffad33; --series: #3987e5;
         --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
       }
     }
@@ -70,12 +70,79 @@
     .issued p { margin: 0; color: var(--muted); font-size: .88rem; }
     .issued .actions { justify-content: flex-start; margin-top: 10px; }
     .error { color: var(--bad); font-size: .88rem; margin: 6px 0 0; min-height: 1.2em; }
-    @media (max-width: 560px) { .req { grid-template-columns: 1fr; } .actions { justify-content: flex-start; } }
+
+    .seg { display: inline-flex; gap: 4px; }
+    .seg button { background: none; color: var(--muted); }
+    .seg button[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--surface); }
+    header .seg { margin-left: auto; }
+    [hidden] { display: none !important; }
+
+    .filter { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); }
+    .panel h3 { font-size: .95rem; margin: 0 0 10px; display: flex; justify-content: space-between; gap: 12px; }
+    .panel h3 small { font-weight: 400; color: var(--muted); font-size: .8rem; }
+    .usage-stack { display: grid; gap: 10px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .tile-label { color: var(--muted); font-size: .8rem; }
+    .tile-value { font-size: 1.6rem; font-weight: 600; line-height: 1.25; }
+    .tile-sub { color: var(--muted); font-size: .78rem; min-height: 1.2em; }
+
+    .chart { position: relative; }
+    .plot { position: relative; height: 150px; margin-left: 26px; }
+    .grid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); }
+    .grid span { position: absolute; right: 100%; margin-right: 8px; top: -.7em; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+    .cols { position: absolute; inset: 0; display: flex; align-items: stretch; }
+    .col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding: 0 1px; }
+    .col:hover, .col:focus-visible { background: var(--surface-2); outline: none; }
+    .col-bar { display: block; width: 100%; max-width: 24px; background: var(--series); border-radius: 4px 4px 0 0; }
+    .xaxis { display: flex; justify-content: space-between; margin: 4px 0 0 26px; color: var(--muted); font-size: .72rem; }
+    .tip {
+      position: absolute; z-index: 2; pointer-events: none; white-space: nowrap; font-size: .8rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; box-shadow: var(--shadow);
+    }
+    .tip b { display: block; }
+    details.as-table { margin-top: 10px; font-size: .85rem; }
+    details.as-table summary { cursor: pointer; color: var(--muted); }
+
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th { text-align: right; font-weight: 500; color: var(--muted); font-size: .75rem; padding: 2px 0 4px 10px; }
+    th:first-child { text-align: left; padding-left: 0; }
+    td { padding: 4px 0 4px 10px; text-align: right; font-variant-numeric: tabular-nums; border-top: 1px solid var(--border); }
+    td:first-child { text-align: left; padding-left: 0; overflow-wrap: anywhere; }
+    tr.unused td { color: var(--muted); }
+    .bar-cell { width: 34%; }
+    .feat-bar { display: block; height: 10px; background: var(--series); border-radius: 0 4px 4px 0; }
+    @media (max-width: 560px) {
+      .req { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+      .bar-cell, .wide-only { display: none; }
+    }
   </style>
 </head>
 <body>
   <main>
-    <header><span class="brand-mark" lang="ja">文</span><h1>Members</h1></header>
+    <header>
+      <span class="brand-mark" lang="ja">文</span><h1>Admin</h1>
+      <nav class="seg" id="views">
+        <button type="button" data-view="members">Members</button>
+        <button type="button" data-view="usage">Usage</button>
+      </nav>
+    </header>
+
+    <section id="usageView" hidden>
+      <p class="lead">Which features of the site get used, as anonymous daily totals. Nothing here can say who did
+        what. Sentences and other text are never recorded.</p>
+      <div class="filter">
+        <div class="seg" id="range">
+          <button type="button" data-days="7">7 days</button>
+          <button type="button" data-days="30">30 days</button>
+          <button type="button" data-days="90">90 days</button>
+        </div>
+      </div>
+      <div class="usage-stack" id="usageBody"></div>
+    </section>
+
+    <section id="membersView">
     <p class="lead">Only reachable from this computer. The site is private: people get in when you approve their
       request, or straight away with an invite code you gave them. Revoke locks a member out on every browser;
       Remove deletes the login.</p>
@@ -102,6 +169,7 @@
     <div class="list" id="approved"></div>
     <h2>No access <span class="count" id="nDenied">0</span></h2>
     <div class="list" id="denied"></div>
+    </section>
   </main>
 
   <script>
@@ -167,7 +235,7 @@
       document.getElementById("invites").replaceChildren(...(invites.length ? invites.map(inviteCard) : [el("div", "empty", "No unused invites.")]));
       document.getElementById("nInvites").textContent = invites.length;
       const waiting = list.filter((x) => x.status === "pending").length;
-      document.title = (waiting ? `(${waiting}) ` : "") + "Bunpō · Members";
+      document.title = (waiting ? `(${waiting}) ` : "") + "Bunpō · Admin";
     }
 
     async function post(url, data) {
@@ -217,8 +285,217 @@
       }
     };
 
+    /* ------------------------------------------------------------ Usage */
+
+    const usageView = { days: 30, data: null, fetched: "" };
+    const num = (n) => n.toLocaleString();
+    const plural = (n, word) => `${num(n)} ${word}${n === 1 ? "" : "s"}`;
+    const people = (n) => (n === 1 ? "1 person" : `${num(n)} people`);
+    const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dayLabel = (key) => {
+      const [y, m, d] = key.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    };
+
+    // The last `count` days, oldest first, ending today. Days nothing happened on count as empty.
+    function daysInRange(today, count, days) {
+      const [y, m, d] = today.split("-").map(Number);
+      const list = [];
+      for (let i = count - 1; i >= 0; i--) {
+        const key = dayKey(new Date(y, m - 1, d - i));
+        list.push({ key, active: 0, features: {}, ...days[key] });
+      }
+      return list;
+    }
+
+    function totalsByFeature(days) {
+      const totals = {};
+      for (const day of days) {
+        for (const [f, { uses, people }] of Object.entries(day.features)) {
+          const t = (totals[f] ||= { uses: 0, days: 0, people: 0 });
+          t.uses += uses;
+          t.days += 1;
+          t.people = Math.max(t.people, people);
+        }
+      }
+      return totals;
+    }
+
+    function tile(label, value, sub) {
+      const t = el("div", "panel");
+      t.append(el("div", "tile-label", label), el("div", "tile-value", value), el("div", "tile-sub", sub || ""));
+      return t;
+    }
+
+    // A round step that gives about four lines, in whole people.
+    function axisStep(max) {
+      const raw = Math.max(max / 4, 1);
+      const size = 10 ** Math.floor(Math.log10(raw));
+      return [1, 2, 5, 10].map((x) => x * size).find((x) => x >= raw);
+    }
+
+    function table(headers, rows) {
+      const t = el("table");
+      const head = el("tr");
+      for (const h of headers) head.append(el("th", "", h));
+      t.append(head);
+      for (const row of rows) {
+        const tr = el("tr");
+        for (const cell of row) tr.append(el("td", "", cell));
+        t.append(tr);
+      }
+      return t;
+    }
+
+    function activityPanel(days) {
+      const panel = el("div", "panel");
+      panel.append(el("h3", "", "People active per day"));
+      const step = axisStep(Math.max(...days.map((d) => d.active), 1));
+      const top = Math.ceil(Math.max(...days.map((d) => d.active), 1) / step) * step;
+
+      const chart = el("div", "chart");
+      const plot = el("div", "plot");
+      plot.setAttribute("aria-hidden", "true"); // the table under it says the same
+      for (let v = 0; v <= top; v += step) {
+        const line = el("div", "grid");
+        line.style.bottom = `${(v / top) * 100}%`;
+        line.append(el("span", "", num(v)));
+        plot.append(line);
+      }
+      const cols = el("div", "cols");
+      const tip = el("div", "tip");
+      tip.hidden = true;
+      days.forEach((d) => {
+        const uses = Object.values(d.features).reduce((sum, f) => sum + f.uses, 0);
+        const col = el("div", "col");
+        if (d.active) {
+          const bar = el("span", "col-bar");
+          bar.style.height = `${(d.active / top) * 100}%`;
+          col.append(bar);
+        }
+        col.onpointerenter = () => {
+          tip.replaceChildren(el("b", "", dayLabel(d.key)), people(d.active), el("br"), plural(uses, "use"));
+          tip.hidden = false;
+          // Beside the column, on whichever side has room.
+          const box = chart.getBoundingClientRect();
+          const c = col.getBoundingClientRect();
+          const left = c.left - box.left + c.width + 6;
+          tip.style.left = `${left + tip.offsetWidth > box.width ? c.left - box.left - tip.offsetWidth - 6 : left}px`;
+          tip.style.top = "8px";
+        };
+        col.onpointerleave = () => { tip.hidden = true; };
+        cols.append(col);
+      });
+      plot.append(cols);
+      const axis = el("div", "xaxis");
+      axis.setAttribute("aria-hidden", "true");
+      axis.append(el("span", "", dayLabel(days[0].key)), el("span", "", dayLabel(days[days.length - 1].key)));
+      chart.append(plot, axis, tip);
+
+      const details = el("details", "as-table");
+      details.append(el("summary", "", "Show as a table"));
+      details.append(table(["Day", "People", "Uses"], [...days].reverse().map((d) => [
+        dayLabel(d.key), num(d.active), num(Object.values(d.features).reduce((sum, f) => sum + f.uses, 0)),
+      ])));
+      details.open = usageView.tableOpen || false;
+      details.ontoggle = () => { usageView.tableOpen = details.open; };
+      panel.append(chart, details);
+      return panel;
+    }
+
+    function groupPanel(name, features, totals, top) {
+      const rows = Object.entries(features)
+        .map(([id, label]) => ({ label, ...(totals[id] || { uses: 0, days: 0, people: 0 }) }))
+        .sort((a, b) => b.uses - a.uses);
+      const panel = el("div", "panel");
+      const title = el("h3", "", name);
+      const sum = rows.reduce((s, r) => s + r.uses, 0);
+      title.append(el("small", "", sum ? plural(sum, "use") : "Not used"));
+      panel.append(title);
+
+      const t = el("table");
+      const head = el("tr");
+      head.append(el("th", "", "Feature"), el("th", "bar-cell"), el("th", "", "Uses"), el("th", "wide-only", "Days"), el("th", "", "Most people in a day"));
+      t.append(head);
+      for (const r of rows) {
+        const tr = el("tr", r.uses ? "" : "unused");
+        const barCell = el("td", "bar-cell");
+        if (r.uses) {
+          const bar = el("span", "feat-bar");
+          bar.style.width = `max(2px, ${(r.uses / top) * 100}%)`;
+          barCell.append(bar);
+        }
+        tr.append(el("td", "", r.label), barCell, el("td", "", r.uses ? num(r.uses) : "–"), el("td", "wide-only", r.uses ? num(r.days) : "–"), el("td", "", r.uses ? num(r.people) : "–"));
+        t.append(tr);
+      }
+      panel.append(t);
+      return panel;
+    }
+
+    function drawUsage() {
+      const { data, days: count } = usageView;
+      if (!data) return;
+      $$("#range button").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.days === count)));
+      const days = daysInRange(data.today, count, data.days);
+      const totals = totalsByFeature(days);
+      const box = document.getElementById("usageBody");
+      const parts = [];
+
+      // "Pages" counts every visit, so it would dwarf the features: it gets its own bar scale.
+      const groups = Object.entries(data.groups);
+      const features = groups.filter(([name]) => name !== "Pages").flatMap(([, f]) => Object.keys(f));
+      const featureUses = features.reduce((sum, f) => sum + (totals[f]?.uses || 0), 0);
+      const usedFeatures = features.filter((f) => totals[f]).length;
+      const busiest = days.reduce((best, d) => (d.active > best.active ? d : best), days[0]);
+
+      const tiles = el("div", "tiles");
+      tiles.append(
+        tile("People today", num(days[days.length - 1].active)),
+        tile("Busiest day", busiest.active ? people(busiest.active) : "–", busiest.active ? dayLabel(busiest.key) : ""),
+        tile("Feature uses", num(featureUses), `in ${plural(count, "day")}, not counting page visits`),
+        tile("Features used", `${usedFeatures} of ${features.length}`, `in ${plural(count, "day")}`),
+      );
+      parts.push(tiles);
+
+      if (days.some((d) => d.active)) parts.push(activityPanel(days));
+      else parts.push(el("div", "empty", `Nothing recorded in the last ${plural(count, "day")}. Counting began when this page was added, and new use shows up about 10 seconds after it happens.`));
+
+      const top = (ids) => Math.max(1, ...ids.map((f) => totals[f]?.uses || 0));
+      const pagesTop = top(Object.keys(data.groups.Pages));
+      const featuresTop = top(features);
+      for (const [name, f] of groups) parts.push(groupPanel(name, f, totals, name === "Pages" ? pagesTop : featuresTop));
+      box.replaceChildren(...parts);
+    }
+
+    // Redrawn only when something changed, so an open table or a tooltip isn't lost every 5 seconds.
+    async function loadUsage() {
+      const text = await (await fetch("/api/usage", { cache: "no-store" })).text();
+      if (text === usageView.fetched) return;
+      usageView.fetched = text;
+      usageView.data = JSON.parse(text);
+      drawUsage();
+    }
+
+    const $$ = (s) => [...document.querySelectorAll(s)];
+
+    function showView(view) {
+      const usage = view === "usage";
+      document.getElementById("usageView").hidden = !usage;
+      document.getElementById("membersView").hidden = usage;
+      $$("#views button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
+      if (location.hash.slice(1) !== view) history.replaceState(null, "", "#" + view);
+      if (usage) loadUsage();
+    }
+
+    $$("#views button").forEach((b) => (b.onclick = () => showView(b.dataset.view)));
+    $$("#range button").forEach((b) => (b.onclick = () => { usageView.days = +b.dataset.days; drawUsage(); }));
+    showView(location.hash === "#usage" ? "usage" : "members");
+
     load();
-    setInterval(load, 5000);
+    setInterval(() => {
+      load();
+      if (!document.getElementById("usageView").hidden) loadUsage();
+    }, 5000);
   </script>
 </body>
 </html>
