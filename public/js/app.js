@@ -146,7 +146,7 @@ const partsHTML = (parts) => parts.map((p) => `<span class="vp ${p.cls}">${ruby(
 // How much of the top of the window the bar covers: nothing once it's a sidebar on a wide screen.
 const barHeight = () => (matchMedia("(min-width: 1024px)").matches ? 0 : $(".topbar").offsetHeight);
 
-const TABS = ["home", "lessons", "structure", "particles", "verbs", "adjectives", "patterns", "practice", "mistakes"];
+const TABS = ["home", "lessons", "structure", "particles", "verbs", "adjectives", "patterns", "practice", "listen", "mistakes"];
 
 function showTab(id) {
   if (!TABS.includes(id)) id = "home";
@@ -168,6 +168,7 @@ function showTab(id) {
     renderStats();
   }
   if (id === "practice") showPractice();
+  if (id === "listen") renderListen();
 }
 
 /* ---------------------------------------------------------------- Account */

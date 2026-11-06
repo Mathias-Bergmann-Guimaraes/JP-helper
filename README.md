@@ -60,6 +60,38 @@ The **Practice** tab brings it together, with four parts to pick from:
   them mixed, each with an optional focus (just に, just the て-form…). Right answers earn XP, and
   the number keys 1–4 answer.
 
+The **Listen** tab lists real YouTube videos and podcast episodes by how much of their grammar you've studied. Pick the
+lesson you've reached (it starts at the furthest one you've got a star in) and each one shows the
+share of its sentences that use grammar up to there, the lesson it's comfortable from (90% of its
+sentences), and which grammar points it uses, split into studied and not reached yet. Each point
+opens its lesson, and its times jump the player to where it's used. Grammar is spotted by rules in
+`tools/videos/grammar_rules.py`, reading the captions people wrote for the video, so a few points
+may be missed or wrong. 7 of the 186 points can't be told apart from others this way, and vocabulary
+isn't counted. To refresh the list (needs Python, and `public/js/videos-data.js` is the only output):
+
+```
+cd tools/videos
+pip install -r requirements.txt
+python analyse.py --test
+python analyse.py --gather
+python analyse.py --podcasts
+python analyse.py --build
+```
+
+Any member can like or dislike a video or episode. Everyone sees the totals, and nobody sees who voted:
+the site only sends a member the totals and their own vote, and `data/votes.json` holds salted hashes
+in place of names. Stopping double votes means the server's owner could still work out a vote by
+testing each member's id against the file. Removing a member removes their votes. Bookmarks and
+favourite channels are private to each account and saved with its progress. The tab can list just
+those, and **Remove** deletes them along with the rest of the account's progress.
+
+Captions and transcripts stay in `tools/videos/.cache`, which isn't committed, and the site stores
+only grammar points, counts and times. The video player is YouTube's own embed, from
+`youtube-nocookie.com`, so opening a video contacts YouTube, and the list's thumbnails load from
+`i.ytimg.com`. Podcast episodes play from the podcast's own host. Only shows whose feeds link to a
+transcript can be included, and those transcripts are machine-made, so an episode's grammar list is
+less reliable than a video's, and the page says so.
+
 Every few lessons there's a **big test** on everything since the last one, spread evenly across
 those lessons, 5 questions per lesson: 1–5, 6–10, 11–16, 17–20 and 21–25 in Book I, then every five
 lessons in Book II. Each book ends with a 50-question final. They're all open from the start and take
@@ -107,8 +139,8 @@ data goes to Google. Accounts, invites and sessions are saved in `data/access.js
 committed — older copies of that file are upgraded automatically.
 
 Lesson progress (test scores, stars, XP and XP per day, best streak, the last lesson opened, the sentences a
-member wrote, their corrected mistakes, big test scores and certificates, the daily roulettes and the review
-schedule) is saved per
+member wrote, their corrected mistakes, big test scores and certificates, the daily roulettes, the review
+schedule, and their bookmarks and favourite channels in the Listen tab) is saved per
 account in `data/progress.json`, so it follows a member to every browser they log in on.
 Progress made in a browser before logins existed moves into the first account that logs in
 there. **Remove** deletes it along with the login.

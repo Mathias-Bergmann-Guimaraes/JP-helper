@@ -31,6 +31,7 @@ const isOpen = (file) => {
 const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : path.join(__dirname, "data", "access.json");
 const PROGRESS_FILE = path.join(path.dirname(DATA_FILE), "progress.json");
 const USAGE_FILE = path.join(path.dirname(DATA_FILE), "usage.json");
+const VOTES_FILE = path.join(path.dirname(DATA_FILE), "votes.json");
 
 const COOKIE = "jpg_access";
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
@@ -437,18 +438,22 @@ function touch(id) {
 //            answered right since): the latest list of each name wins.
 //   dated  — { [name]: { step, last, due } } (spaced review of a grammar point): the entry reviewed
 //            most recently wins, so one device can't undo the reviews made on another.
+//   list   — [string] (bookmarked videos, favourite channels): the latest list wins, so removing
+//            one sticks.
 //   days   — { [YYYY-MM-DD]: number } (XP per day, for the member's own chart on Home): each day
 //            only ever goes up, and days older than MAX_HISTORY_DAYS are dropped.
 // The page gets this list too (in progress.js), so adding a key here is all it takes.
 const PROGRESS_MERGE = {
   lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest", sentences: "texts",
   mistakes: "notes", roulette: "latest", review: "dated", reviewDay: "latest", xpDays: "days", bigTests: "scores",
-  bigWeak: "latest", certs: "latest",
+  bigWeak: "latest", certs: "latest", listenSaved: "list", listenChannels: "list",
 };
 const MAX_HISTORY_DAYS = 366;
 const MAX_PROGRESS_BODY = 512 * 1024;
 const MAX_LATEST = 2 * 1024;
 const MAX_SCORES = 1000;
+const MAX_LIST = 1000; // entries in a list
+const MAX_LIST_ENTRY = 150; // characters per entry
 const MAX_TEXTS = 5; // strings per name
 const MAX_TEXT = 200; // characters per string
 const MAX_NOTES = 10; // mistakes per name
@@ -480,6 +485,10 @@ function sendProgressScript(res, id) {
 function mergeProgress(how, saved, v) {
   if (how === "max") return isScore(v) ? Math.max(saved ?? 0, v) : undefined;
   if (how === "latest") return v !== null && JSON.stringify(v).length <= MAX_LATEST ? v : undefined;
+  if (how === "list") {
+    const ok = Array.isArray(v) && v.length <= MAX_LIST && v.every((t) => typeof t === "string" && t.length >= 1 && t.length <= MAX_LIST_ENTRY);
+    return ok ? v : undefined;
+  }
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   const out = { ...saved };
   if (how === "dated") {
@@ -529,6 +538,79 @@ async function handleProgress(req, res, me) {
   sendJson(res, 200, progressOf(me.id));
 }
 
+/* ---------------------------------------------------------------- Likes and dislikes */
+
+// data/votes.json: { salt, items: { [video or episode id]: { [voter]: 1 | -1 } } }
+// Members only ever get the totals, plus their own vote. A voter is a salted hash of the member and
+// the item, so the file holds no names and one person's votes can't be linked to each other just
+// by reading it. It still has to know who voted to stop double votes, so whoever holds the salt and
+// the member ids (the server's owner) could work it out by testing each one.
+const votes = loadJson(VOTES_FILE);
+votes.items ||= {};
+votes.salt ||= crypto.randomBytes(32).toString("hex");
+
+const voterHash = (memberId, item) => crypto.createHmac("sha256", votes.salt).update(`${memberId}:${item}`).digest("hex").slice(0, 32);
+
+// Only what's in the Listen tab can be voted on, so requests can't fill the file with made-up ids.
+const LISTEN_DATA = path.join(PUBLIC_DIR, "js", "videos-data.js");
+let listenIds = { mtime: 0, ids: new Set() };
+function isListenItem(id) {
+  try {
+    const { mtimeMs } = fs.statSync(LISTEN_DATA);
+    if (mtimeMs !== listenIds.mtime) {
+      const ids = [...fs.readFileSync(LISTEN_DATA, "utf8").matchAll(/\{"id":"([^"]+)"/g)].map((m) => m[1]);
+      listenIds = { mtime: mtimeMs, ids: new Set(ids) };
+    }
+  } catch {
+    return false;
+  }
+  return listenIds.ids.has(id);
+}
+
+function voteTotal(item) {
+  const list = Object.values(votes.items[item] || {});
+  return [list.filter((v) => v > 0).length, list.filter((v) => v < 0).length];
+}
+
+function sendVotes(res, id) {
+  const totals = {};
+  const mine = {};
+  for (const item of Object.keys(votes.items)) {
+    totals[item] = voteTotal(item);
+    const v = votes.items[item][voterHash(id, item)];
+    if (v) mine[item] = v;
+  }
+  sendJson(res, 200, { totals, mine });
+}
+
+// { id, vote }, where vote is 1 (like), -1 (dislike) or 0 (take it back).
+async function handleVote(req, res, me) {
+  const b = await body(req, res);
+  if (!b) return;
+  if (typeof b.id !== "string" || !isListenItem(b.id) || ![1, -1, 0].includes(b.vote)) return sendJson(res, 400, { error: "Bad vote" });
+  const voter = voterHash(me.id, b.id);
+  const item = (votes.items[b.id] ||= {});
+  if (b.vote) item[voter] = b.vote;
+  else delete item[voter];
+  if (!Object.keys(item).length) delete votes.items[b.id];
+  saveJson(VOTES_FILE, votes);
+  sendJson(res, 200, { total: voteTotal(b.id), mine: b.vote });
+}
+
+// A removed member's votes go with their login.
+function dropVotes(memberId) {
+  let changed = false;
+  for (const item of Object.keys(votes.items)) {
+    const voter = voterHash(memberId, item);
+    if (votes.items[item][voter]) {
+      delete votes.items[item][voter];
+      if (!Object.keys(votes.items[item]).length) delete votes.items[item];
+      changed = true;
+    }
+  }
+  if (changed) saveJson(VOTES_FILE, votes);
+}
+
 /* ---------------------------------------------------------------- Usage totals */
 
 // What the admin page's Usage view shows: which features of the site get used. Every feature is
@@ -537,8 +619,9 @@ async function handleProgress(req, res, me) {
 const USAGE_GROUPS = {
   Pages: {
     "tab.home": "Home", "tab.lessons": "Lessons", "tab.structure": "Sentences", "tab.particles": "Particles", "tab.verbs": "Verbs",
-    "tab.adjectives": "Adjectives", "tab.patterns": "Patterns", "tab.practice": "Practice", "tab.mistakes": "Mistakes",
+    "tab.adjectives": "Adjectives", "tab.patterns": "Patterns", "tab.practice": "Practice", "tab.listen": "Listen", "tab.mistakes": "Mistakes",
   },
+  Listen: { "listen.open": "Videos opened", "listen.vote": "Likes and dislikes", "listen.save": "Bookmarks changed", "listen.channel": "Favourite channels changed" },
   Home: { "home.continue": "Continue button", "home.explore": "Explore tiles", "home.stats": "Weak points opened from Your progress" },
   Lessons: {
     "lesson.open": "Lessons opened", "lesson.practice": "Practice questions answered", "lesson.check": "Grammar checks started",
@@ -643,6 +726,12 @@ const publicServer = http.createServer(async (req, res) => {
     if (!member) return sendJson(res, 403, { error: "Access required" });
     if (req.method !== "POST") return sendText(res, 405, "Method not allowed");
     return handleProgress(req, res, me);
+  }
+  if (pathname === "/votes") {
+    if (!member) return sendJson(res, 403, { error: "Access required" });
+    if (req.method === "GET") return sendVotes(res, me.id);
+    if (req.method !== "POST") return sendText(res, 405, "Method not allowed");
+    return handleVote(req, res, me);
   }
   if (pathname === "/usage") {
     if (!member) return sendJson(res, 403, { error: "Access required" });
@@ -759,6 +848,7 @@ const ADMIN_ACTIONS = {
         delete progress[body.id];
         saveJson(PROGRESS_FILE, progress);
       }
+      dropVotes(body.id);
     } else if (body.action === "approve" || body.action === "deny") {
       r.status = body.action === "approve" ? "approved" : "denied";
       r.decidedAt = new Date().toISOString();
