@@ -882,7 +882,9 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .sv-translation { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: 1.05rem; }
 .sv-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
 
-.patterns { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+/* Each card is as wide as its sentence on one line, then the row shares out what is left. */
+.patterns, .pat-examples { display: flex; flex-wrap: wrap; gap: 14px; }
+.patterns .pattern, .pat-examples .pattern { flex: 1 1 auto; min-width: 0; }
 .pattern { background: var(--surface-2); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .pattern-title { font-weight: 700; }
 
@@ -1217,7 +1219,6 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
   font-weight: 700;
 }
 
-.pat-examples { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
 .pat-card .chunk .hl { background: var(--pc); }
 .pat-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; align-items: start; }
 .pat-bottom .step-label { margin-top: 0; }

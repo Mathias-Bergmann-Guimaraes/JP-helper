@@ -951,10 +951,10 @@ function patternCardHTML(p) {
           <p class="pd-idea">${p.idea}</p>
           <div class="step-label">How it's built</div>
           <div class="lit-row">${literal}<span class="fplus">=</span><span class="lit-result">${p.literalResult}</span></div>
-          <div class="step-label">Try it</div>
-          <div class="pat-try" data-try="${p.id}"></div>
         </div>
       </div>
+      <div class="step-label">Try it</div>
+      <div class="pat-try" data-try="${p.id}"></div>
       <div class="step-label">Examples</div>
       <div class="pat-examples">
         ${p.examples.map((ex) => `
