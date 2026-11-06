@@ -6,6 +6,7 @@
   python analyse.py --podcasts             look up podcast episodes and download their transcripts
   python analyse.py --build                write public/js/videos-data.js from what was downloaded
   python analyse.py --sample 37.2          show caption lines where a rule fired, to judge it
+  python analyse.py --songs                write public/js/songs-data.js from songs.json
 
 Captions are kept only in .cache (not committed). The site's data file holds grammar points, counts
 and timestamps, and no caption text. For videos, only captions written by people are used, since
@@ -14,6 +15,10 @@ YouTube's automatic ones have no reliable sentence breaks and get a lot of gramm
 Podcasts are the exception: the only transcripts most feeds offer are machine-made ones, listed with
 a <podcast:transcript> tag, so the tab says so on those episodes. Episodes without a transcript are
 skipped, and no audio is downloaded. The tab plays it from the podcast's own host.
+
+Songs are separate: songs.json lists them, and --songs finds each one's video and LRCLIB entry
+(saving both ids back to songs.json), then spots the grammar in the lyrics. Lyrics are only held in
+memory for that and are never saved. The tab fetches them from LRCLIB when a member opens a song.
 """
 import argparse
 import hashlib
@@ -26,6 +31,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -37,6 +43,9 @@ HERE = Path(__file__).parent
 ROOT = HERE.parent.parent
 CACHE = HERE / ".cache"
 OUT = ROOT / "public" / "js" / "videos-data.js"
+SONGS_IN = HERE / "songs.json"
+SONGS_OUT = ROOT / "public" / "js" / "songs-data.js"
+LRCLIB = "https://lrclib.net/api"
 
 # Where candidates come from: channel video lists and searches. Titles decide nothing on their own;
 # a video's place in the tab comes from its captions.
@@ -311,6 +320,111 @@ def build():
     print("wrote", OUT, OUT.stat().st_size // 1024, "KB")
 
 
+def lrc_lines(text):
+    """[[seconds, line], …] from LRC text. Each line ends a sentence, as lyrics rarely have punctuation."""
+    out = []
+    for m in re.finditer(r"^\[(\d+):(\d+(?:\.\d+)?)\](.*)$", text or "", re.M):
+        if m[3].strip():
+            out.append([int(m[1]) * 60 + float(m[2]), m[3].strip() + "。"])
+    return out
+
+
+def lrclib_entry(song, seconds):
+    """The song's pinned entry, or else the synced Japanese one nearest the video's length."""
+    if song.get("lrc"):
+        return json.loads(fetch(f"{LRCLIB}/get/{song['lrc']}"))
+    artist = song.get("lookup", song["artist"])
+    title = song.get("lookup_title", song["title"])
+    found = json.loads(fetch(f"{LRCLIB}/search?" + urllib.parse.urlencode({"track_name": title, "artist_name": artist})))
+    if not any(e.get("syncedLyrics") for e in found):
+        found = json.loads(fetch(f"{LRCLIB}/search?" + urllib.parse.urlencode({"q": f"{artist} {title}"})))
+
+    def is_japanese(e):
+        lines = lrc_lines(e.get("syncedLyrics"))
+        return lines and sum(japanese(l) for _, l in lines) >= len(lines) * 0.5
+
+    found = [e for e in found if not re.search(r"live|ライブ", e.get("trackName") or "", re.I)] or found
+    return min(filter(is_japanese, found), key=lambda e: abs((e.get("duration") or 0) - seconds), default=None)
+
+
+def can_embed(video_id):
+    url = "https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=" + video_id
+    try:
+        with urllib.request.urlopen(url, timeout=15) as r:
+            return r.status == 200
+    except urllib.error.HTTPError:
+        return False
+
+
+def find_video(song):
+    """The artist's own upload that can play on other sites, preferring the full music video."""
+    names = [song["artist"], song.get("lookup", song["artist"]), *song.get("aliases", [])]
+    fold = lambda s: re.sub(r"[\s『』.]", "", s).lower()
+    rows = ytdlp_list(f"ytsearch12:{song.get('lookup', song['artist'])} {song['title']} MV", 12)
+    rows = [r for r in rows if 90 <= r["seconds"] <= 480 and any(fold(n) in fold(r["channel"]) for n in names)]
+
+    def score(r):
+        title = r["title"].lower()
+        odd = re.search(r"live|acoustic|ver\.|short|teaser|trailer|弾き語り|歌ってみた|cover|カバー|lyric|リリック|tv size|ライブ", title)
+        mv = re.search(r"mv|music video|ミュージックビデオ|official", title)
+        return (fold(song["title"]) in fold(r["title"]), not odd, bool(mv))
+
+    for r in sorted(rows, key=score, reverse=True):
+        if can_embed(r["id"]):
+            return r
+    return None
+
+
+def video_seconds(video_id):
+    out = subprocess.run(
+        [str(Path(sys.executable).parent / "yt-dlp"), "--skip-download", "--print", "%(duration)s", f"https://www.youtube.com/watch?v={video_id}"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", env={**os.environ, "PYTHONUTF8": "1"},
+    )
+    return int(float(out.stdout.split()[0]))
+
+
+def songs():
+    wanted = json.loads(SONGS_IN.read_text(encoding="utf-8"))
+    kept = []
+    for song in wanted:
+        name = f"{song['artist']} - {song['title']}"
+        try:
+            if not song.get("yt"):
+                found = find_video(song)
+                if not found:
+                    print("NO VIDEO ", name)
+                    continue
+                song["yt"], song["seconds"] = found["id"], found["seconds"]
+            elif not song.get("seconds"):
+                song["seconds"] = video_seconds(song["yt"])
+            seconds = song["seconds"]
+            entry = lrclib_entry(song, seconds)
+        except Exception as e:
+            print("FAILED   ", name, type(e).__name__)
+            continue
+        if not entry:
+            print("NO LYRICS", name)
+            continue
+        song["lrc"] = entry["id"]
+        sents, points, levels, chars = analyse({"captions": lrc_lines(entry.get("syncedLyrics"))})
+        kept.append({
+            "id": song["yt"], "title": song["title"], "channel": song["artist"], "seconds": seconds, "kind": "music",
+            "lrc": entry["id"], "sentences": len(sents), "cpm": round(chars / (seconds / 60)),
+            "level": level_for(levels, len(sents), COVER),
+            "levels": {str(k): levels[k] for k in sorted(levels)},
+            "points": {k: [p["n"], p["t"]] for k, p in sorted(points.items(), key=lambda x: [int(n) for n in x[0].split(".")])},
+        })
+        print(f"ok {song['yt']} {seconds:4}s lrc {entry['id']} {round(entry.get('duration') or 0):4}s L{kept[-1]['level']:<2} {name}")
+        time.sleep(2.5)  # LRCLIB answers 429 to anything much faster
+    SONGS_IN.write_text("[\n" + ",\n".join("  " + json.dumps(s, ensure_ascii=False) for s in wanted) + "\n]\n", encoding="utf-8")
+    head = ("// Written by tools/videos/analyse.py --songs, so don't edit it by hand. Grammar found in each song's\n"
+            "// lyrics, in the same shape as videos-data.js. lrc is the song's LRCLIB entry, which the Listen tab\n"
+            "// fetches when a member opens the song. No lyrics are stored here.\n")
+    body = json.dumps(kept, ensure_ascii=False, separators=(",", ":")).replace('},{"id"', '},\n{"id"')
+    SONGS_OUT.write_text(f"{head}const SONGS = {body};\n", encoding="utf-8")
+    print(f"{len(kept)} of {len(wanted)} songs; wrote {SONGS_OUT}")
+
+
 def test():
     """Each rule should fire on its own example, and shouldn't fire on much earlier lessons' examples."""
     node = ("const s=require('fs').readFileSync('public/js/lessons.js','utf8');"
@@ -363,6 +477,7 @@ if __name__ == "__main__":
     ap.add_argument("--podcasts", action="store_true")
     ap.add_argument("--build", action="store_true")
     ap.add_argument("--sample")
+    ap.add_argument("--songs", action="store_true")
     a = ap.parse_args()
     if a.test:
         test()
@@ -374,3 +489,5 @@ if __name__ == "__main__":
         build()
     if a.sample:
         sample(a.sample)
+    if a.songs:
+        songs()

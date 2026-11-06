@@ -78,6 +78,16 @@ python analyse.py --podcasts
 python analyse.py --build
 ```
 
+Its **Music** filter lists songs, measured the same way from their lyrics. A song's page shows the lyrics
+beside the video: the current line lights up as it plays, pressing a line jumps to it, and **Sooner** and
+**Later** correct the timing on this device if the video runs differently from the record. Lyrics
+aren't stored on the site or in this repository. The member's browser fetches them from
+[LRCLIB](https://lrclib.net), a free database its users write, when a song is opened, so opening one
+contacts LRCLIB as well as YouTube. They have no furigana or translation. To change the songs, edit
+`tools/videos/songs.json` (a new line needs only `artist` and `title`, and `yt` or `lrc` pin a video or
+LRCLIB entry when the search picks the wrong one), then run `python analyse.py --songs`, which writes
+`public/js/songs-data.js`.
+
 Any member can like or dislike a video or episode. Everyone sees the totals, and nobody sees who voted:
 the site only sends a member the totals and their own vote, and `data/votes.json` holds salted hashes
 in place of names. Stopping double votes means the server's owner could still work out a vote by

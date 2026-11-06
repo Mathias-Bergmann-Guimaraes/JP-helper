@@ -552,14 +552,14 @@ votes.salt ||= crypto.randomBytes(32).toString("hex");
 const voterHash = (memberId, item) => crypto.createHmac("sha256", votes.salt).update(`${memberId}:${item}`).digest("hex").slice(0, 32);
 
 // Only what's in the Listen tab can be voted on, so requests can't fill the file with made-up ids.
-const LISTEN_DATA = path.join(PUBLIC_DIR, "js", "videos-data.js");
+const LISTEN_DATA = ["videos-data.js", "songs-data.js"].map((name) => path.join(PUBLIC_DIR, "js", name));
 let listenIds = { mtime: 0, ids: new Set() };
 function isListenItem(id) {
   try {
-    const { mtimeMs } = fs.statSync(LISTEN_DATA);
-    if (mtimeMs !== listenIds.mtime) {
-      const ids = [...fs.readFileSync(LISTEN_DATA, "utf8").matchAll(/\{"id":"([^"]+)"/g)].map((m) => m[1]);
-      listenIds = { mtime: mtimeMs, ids: new Set(ids) };
+    const mtime = Math.max(...LISTEN_DATA.map((file) => fs.statSync(file).mtimeMs));
+    if (mtime !== listenIds.mtime) {
+      const ids = LISTEN_DATA.flatMap((file) => [...fs.readFileSync(file, "utf8").matchAll(/\{"id":"([^"]+)"/g)].map((m) => m[1]));
+      listenIds = { mtime, ids: new Set(ids) };
     }
   } catch {
     return false;

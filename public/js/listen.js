@@ -2,8 +2,12 @@
 // grammar each one needs. VIDEOS comes from videos-data.js, written by tools/videos/analyse.py.
 // Grammar is spotted by rules, so the numbers are a good guide rather than a count by a teacher.
 
+VIDEOS.push(...SONGS); // from songs-data.js: songs share everything but the lyrics panel, at the end of this file
+
 const listenState = { open: null, show: "reach", channel: "", kind: "all" };
 const listenIsAudio = (v) => v.kind === "audio";
+const listenIsMusic = (v) => v.kind === "music";
+const listenKind = (v) => v.kind || "video";
 
 /* ---------------------------------------------------------------- Likes, bookmarks, favourite channels */
 
@@ -20,6 +24,7 @@ const listenIcon = (name) => `<svg class="listen-icon" viewBox="0 0 24 24" aria-
   star: '<path d="m12 2.8 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9L12 2.8Z"/>',
   video: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="m10 9 5 3-5 3V9Z"/>',
   audio: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="14" width="5" height="7" rx="1.5"/><rect x="16.5" y="14" width="5" height="7" rx="1.5"/>',
+  music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
 }[name]}</svg>`;
 
 // The channel's name, marked with a filled star once it's a favourite.
@@ -114,7 +119,8 @@ function listenToggleChannel(v) {
 
 function listenWireFav(v) {
   const fav = listenChannels().includes(v.channel);
-  $("#listenFavBox").innerHTML = `<button class="listen-act listen-fav ${fav ? "on" : ""}" id="listenFav" aria-pressed="${fav}" title="Only you can see your favourites">${listenIcon("star")} ${fav ? "Favourite channel" : "Favourite this channel"}</button>`;
+  const what = listenIsMusic(v) ? "artist" : "channel";
+  $("#listenFavBox").innerHTML = `<button class="listen-act listen-fav ${fav ? "on" : ""}" id="listenFav" aria-pressed="${fav}" title="Only you can see your favourites">${listenIcon("star")} ${fav ? `Favourite ${what}` : `Favourite this ${what}`}</button>`;
   $("#listenFav").onclick = () => listenToggleChannel(v);
 }
 const LISTEN_REACH = 0.9; // "within reach": this share of a video's sentences use grammar you've studied
@@ -151,7 +157,7 @@ function renderListen() {
   listenLoadVotes();
   if (listenState.open) return renderListenVideo(box, VIDEOS.find((v) => v.id === listenState.open));
   const level = listenLevel();
-  const ofKind = VIDEOS.filter((v) => listenState.kind === "all" || listenIsAudio(v) === (listenState.kind === "audio"));
+  const ofKind = VIDEOS.filter((v) => listenState.kind === "all" || listenKind(v) === listenState.kind);
   const channels = [...new Set(ofKind.map((v) => v.channel))].sort((a, b) => a.localeCompare(b));
   if (!channels.includes(listenState.channel)) listenState.channel = "";
   let list = ofKind.map((v) => ({ v, cover: listenCoverage(v, level) }));
@@ -177,7 +183,7 @@ function renderListen() {
   box.innerHTML = `
     <div class="card hero">
       <h1><span lang="ja">聴</span> Listen</h1>
-      <p>Real YouTube videos and podcasts, measured against the course. Each one shows the grammar it uses and how much of it you've studied, so you can pick something you'll mostly follow.</p>
+      <p>Real YouTube videos, podcasts and songs, measured against the course. Each one shows the grammar it uses and how much of it you've studied, so you can pick something you'll mostly follow. Songs come with their lyrics.</p>
     </div>
     <div class="card listen-bar">
       <label>I've studied up to
@@ -186,8 +192,8 @@ function renderListen() {
         </select>
       </label>
       <button class="btn ${level === lessonToContinue().n ? "primary" : ""}" id="listenCurrent" aria-pressed="${level === lessonToContinue().n}" title="The lesson shown as Your lesson on the Home tab">Current lesson (${lessonToContinue().n})</button>
-      <div class="listen-show" role="group" aria-label="Video or audio">
-        ${[["all", "Both"], ["video", "Video"], ["audio", "Audio"]].map(([k, name]) => `
+      <div class="listen-show" role="group" aria-label="Video, audio or music">
+        ${[["all", "Everything"], ["video", "Video"], ["audio", "Audio"], ["music", "Music"]].map(([k, name]) => `
           <button class="btn ${listenState.kind === k ? "primary" : ""}" data-kind="${k}">${name}</button>`).join("")}
       </div>
       <div class="listen-show" role="group" aria-label="Which ones to show">
@@ -196,7 +202,7 @@ function renderListen() {
         <button class="btn ${listenState.show === "saved" ? "primary" : ""}" data-show="saved">Bookmarks (<span id="listenSavedCount">${saved.filter((id) => VIDEOS.some((v) => v.id === id)).length}</span>)</button>
         <button class="btn ${listenState.show === "favs" ? "primary" : ""}" data-show="favs">Favourite channels (${favs.length})</button>
       </div>
-      <label>Channel or show
+      <label>Channel, show or artist
         <select id="listenChannel">
           <option value="">All</option>
           ${channels.map((c) => `<option value="${listenEsc(c)}" ${c === listenState.channel ? "selected" : ""}>${listenEsc(c)}</option>`).join("")}
@@ -211,7 +217,12 @@ function renderListen() {
   $("#listenCurrent").onclick = () => { store.set("listenLevel", lessonToContinue().n); renderListen(); };
   $("#listenChannel").onchange = (e) => { listenState.channel = e.target.value; renderListen(); };
   $$("[data-show]", box).forEach((b) => (b.onclick = () => { listenState.show = b.dataset.show; renderListen(); }));
-  $$("[data-kind]", box).forEach((b) => (b.onclick = () => { listenState.kind = b.dataset.kind; renderListen(); }));
+  $$("[data-kind]", box).forEach((b) => (b.onclick = () => {
+    listenState.kind = b.dataset.kind;
+    // Songs are chosen because you like them, and few are "within reach", so Music opens on all of them.
+    if (listenState.kind === "music" && listenState.show === "reach") listenState.show = "all";
+    renderListen();
+  }));
   $$("[data-video]", box).forEach((b) => (b.onclick = () => {
     track("listen.open");
     listenState.open = b.dataset.video;
@@ -231,10 +242,10 @@ function listenCardHTML(v, cover, level) {
         ? `<span class="listen-art"><img src="${listenEsc(v.art)}" alt="" loading="lazy" referrerpolicy="no-referrer"></span>`
         : `<img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy" referrerpolicy="no-referrer">`}
       <b class="listen-title">${listenEsc(v.title)}</b>
-      <span class="small muted listen-meta">${listenIcon(listenIsAudio(v) ? "audio" : "video")} ${listenIsAudio(v) ? "Podcast" : "Video"} · ${listenClock(v.seconds)}</span>
+      <span class="small muted listen-meta">${listenIcon(listenKind(v))} ${{ audio: "Podcast", music: "Song", video: "Video" }[listenKind(v)]} · ${listenClock(v.seconds)}</span>
       <span class="small muted">${listenChannelHTML(v)}</span>
       <span class="listen-meter" aria-hidden="true"><i style="width:${pct}%"></i></span>
-      <span class="small"><b>${pct}%</b> of sentences use grammar you've studied</span>
+      <span class="small"><b>${pct}%</b> of ${listenIsMusic(v) ? "lines" : "sentences"} use grammar you've studied</span>
       <span class="small muted">Comfortable from lesson ${v.level} · ${fresh ? `${fresh} new point${fresh > 1 ? "s" : ""}` : "nothing new"}</span>
     </button>
     <div class="listen-actions" data-actions="${v.id}"></div>
@@ -251,8 +262,11 @@ function renderListenVideo(box, v) {
   // Sentences per minute would mislead with long pauses, so speed is characters of speech per minute.
   const pace = v.cpm < 120 ? "Slow" : v.cpm < 220 ? "Moderate" : "Fast";
 
+  const music = listenIsMusic(v);
+
   box.innerHTML = `
     <div class="listen-top"><button class="btn" id="listenBack">← Back to the list</button></div>
+    <div class="${music ? "listen-song" : ""}">
     <div class="card listen-player">
       ${listenIsAudio(v) ? `
         <div class="listen-audio">
@@ -260,23 +274,27 @@ function renderListenVideo(box, v) {
           <audio id="listenAudio" controls preload="none" referrerpolicy="no-referrer" src="${listenEsc(v.audio)}"></audio>
         </div>` : `
         <div class="listen-frame">
-          <iframe id="listenFrame" src="${listenSrc(v.id)}" title="${listenEsc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <iframe id="listenFrame" src="${listenSrc(v.id, 0, false, music)}" title="${listenEsc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>`}
       <h2>${listenEsc(v.title)}</h2>
-      <p class="small muted"><span id="listenChannelName">${listenChannelHTML(v)}</span> · ${listenClock(v.seconds)} · ${pace} speech
+      <p class="small muted"><span id="listenChannelName">${listenChannelHTML(v)}</span> · ${listenClock(v.seconds)}${music ? "" : ` · ${pace} speech`}
         ${listenIsAudio(v)
           ? (v.link ? `· <a href="${listenEsc(v.link)}" target="_blank" rel="noopener">Open the episode</a>` : "")
           : `· <a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" rel="noopener">Open on YouTube</a>`}</p>
-      <p><b>${pct}%</b> of its ${v.sentences} sentences use grammar up to lesson ${level}. Comfortable from <b>lesson ${v.level}</b>.</p>
+      <p><b>${pct}%</b> of its ${v.sentences} ${music ? "lines" : "sentences"} use grammar up to lesson ${level}. Comfortable from <b>lesson ${v.level}</b>.</p>
       <div class="listen-actions" data-actions="${v.id}"></div>
       <div class="listen-actions" id="listenFavBox"></div>
+    </div>
+    ${music ? listenLyricsHTML(v) : ""}
     </div>
     <div class="card">
       <div class="step-label">Grammar you haven't reached (${fresh.length})</div>
       ${fresh.length ? listenPointsHTML(v, fresh) : `<p class="muted small">Nothing past lesson ${level}, so all of it is grammar you've studied.</p>`}
       <div class="step-label">Grammar you've studied (${known.length})</div>
       ${known.length ? listenPointsHTML(v, known) : `<p class="muted small">None of this video's grammar comes before lesson ${level + 1}.</p>`}
-      <p class="small muted listen-note">${listenIsAudio(v)
+      <p class="small muted listen-note">${music
+        ? "Found by rules that read the song's lyrics. Lyrics bend grammar and drop words, so expect more to be missed or wrong than on a video."
+        : listenIsAudio(v)
         ? "Found by rules that read a machine-made transcript of this episode, which mishears some words, so expect more to be missed or wrong than on a video."
         : "Found by rules that read the video's captions, so a few may be missed or wrong."} Vocabulary isn't counted, and ${VIDEOS_UNDETECTED.length} of the course's points can't be spotted this way (like は for contrast). Press a time to jump to it, or a point to open its lesson.</p>
     </div>`;
@@ -295,6 +313,8 @@ function renderListenVideo(box, v) {
     if (audio) {
       audio.currentTime = Number(b.dataset.seek);
       audio.play().catch(() => {});
+    } else if (music) {
+      listenSongSeek(v, Number(b.dataset.seek) + listenShift(v));
     } else {
       $("#listenFrame").src = listenSrc(v.id, Number(b.dataset.seek), true);
     }
@@ -303,10 +323,13 @@ function renderListenVideo(box, v) {
   $$("[data-lesson]", box).forEach((b) => (b.onclick = () => {
     openLessonTab(LESSONS.find((l) => l.n === Number(b.dataset.lesson)));
   }));
+  if (music) listenStartLyrics(v);
 }
 
-function listenSrc(id, start, play) {
-  return `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&cc_load_policy=0${start ? `&start=${start}` : ""}${play ? "&autoplay=1" : ""}`;
+// `tracked` lets the page follow the song's time, for the lyrics, and move it without a reload.
+function listenSrc(id, start, play, tracked) {
+  const track = tracked && location.protocol.startsWith("http") ? `&enablejsapi=1&origin=${encodeURIComponent(location.origin)}` : "";
+  return `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&cc_load_policy=0${start ? `&start=${Math.floor(start)}` : ""}${play ? "&autoplay=1" : ""}${track}`;
 }
 
 function listenPointsHTML(v, keys) {
@@ -326,3 +349,145 @@ function listenPointsHTML(v, keys) {
       </li>`;
   }).join("")}</ul>`;
 }
+
+/* ---------------------------------------------------------------- Song lyrics */
+
+// Lyrics aren't stored on this site. The member's browser fetches them from LRCLIB (lrclib.net, a free
+// database its users write) when a song is opened. Its lines have times, so the player can drive them:
+// YouTube's embed reports its time by postMessage, and takes commands the same way.
+const LISTEN_YT_ORIGIN = "https://www.youtube-nocookie.com";
+const listenLyric = { lines: [], at: -1, ready: false, touched: 0, hello: null, cache: new Map() };
+
+// The lyrics are timed to the record, and a video can start earlier or later. Each song keeps its own
+// correction on this device: seconds to add to every line's time.
+const listenShift = (v) => store.get("listenLyricShift", {})[v.id] || 0;
+
+function listenLyricsHTML(v) {
+  return `
+    <div class="card listen-lyrics-card">
+      <div class="step-label">Lyrics</div>
+      <div class="listen-lyrics" id="listenLyrics" lang="ja" tabindex="0"><p class="muted small">Loading the lyrics…</p></div>
+      <div class="listen-shift" id="listenShiftBox" hidden>
+        <span class="small muted">Out of time with the video?</span>
+        <button class="btn" data-shift="-0.5" title="Show each line half a second sooner">Sooner</button>
+        <button class="btn" data-shift="0.5" title="Show each line half a second later">Later</button>
+        <span class="small muted" id="listenShiftNow"></span>
+      </div>
+      <p class="small muted listen-note">From <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a>, written by its users, so a line may be off. Press a line to jump to it.</p>
+    </div>`;
+}
+
+function listenParseLrc(text) {
+  const lines = [];
+  for (const row of (text || "").split(/\r?\n/)) {
+    const m = row.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
+    if (m) lines.push({ t: Number(m[1]) * 60 + Number(m[2]), text: m[3].trim() });
+  }
+  return lines;
+}
+
+async function listenStartLyrics(v) {
+  const box = $("#listenLyrics");
+  Object.assign(listenLyric, { lines: [], at: -1, ready: false });
+  listenGreetPlayer();
+  try {
+    let entry = listenLyric.cache.get(v.lrc);
+    if (!entry) {
+      const r = await fetch(`https://lrclib.net/api/get/${v.lrc}`, { referrerPolicy: "no-referrer" });
+      if (!r.ok) throw new Error(r.status);
+      entry = await r.json();
+      listenLyric.cache.set(v.lrc, entry);
+    }
+    if (listenState.open !== v.id || !$("#listenLyrics")) return; // they've moved on while it loaded
+    listenLyric.lines = listenParseLrc(entry.syncedLyrics);
+    if (!listenLyric.lines.length) throw new Error("no lines");
+    box.innerHTML = listenLyric.lines.map((l, i) => l.text
+      ? `<button class="listen-line" data-line="${i}">${listenEsc(l.text)}</button>`
+      : `<span class="listen-gap" data-line="${i}"></span>`).join("");
+    $$(".listen-line", box).forEach((b) => (b.onclick = () => listenSongSeek(v, listenLyric.lines[b.dataset.line].t + listenShift(v))));
+    // Reading ahead shouldn't be fought: following pauses for a moment after you scroll the lyrics.
+    ["wheel", "touchmove"].forEach((type) => box.addEventListener(type, () => { listenLyric.touched = Date.now(); }, { passive: true }));
+    $("#listenShiftBox").hidden = false;
+    $$("[data-shift]").forEach((b) => (b.onclick = () => listenMoveShift(v, Number(b.dataset.shift))));
+    listenShowShift(v);
+  } catch {
+    if (listenState.open !== v.id || !$("#listenLyrics")) return;
+    const search = `https://www.google.com/search?q=${encodeURIComponent(`${v.channel} ${v.title} 歌詞`)}`;
+    box.innerHTML = `<p class="small muted">The lyrics didn't load. <button class="btn" id="listenLyricsRetry">Try again</button> or <a href="${search}" target="_blank" rel="noopener">search for them</a>.</p>`;
+    $("#listenLyricsRetry").onclick = () => listenStartLyrics(v);
+  }
+}
+
+function listenMoveShift(v, by) {
+  const shifts = store.get("listenLyricShift", {});
+  shifts[v.id] = Math.round((listenShift(v) + by) * 2) / 2;
+  if (!shifts[v.id]) delete shifts[v.id];
+  store.set("listenLyricShift", shifts);
+  listenShowShift(v);
+}
+
+function listenShowShift(v) {
+  const s = listenShift(v);
+  $("#listenShiftNow").textContent = s ? `${s > 0 ? "+" : "−"}${Math.abs(s).toFixed(1)} s` : "";
+}
+
+const listenPlayerSay = (message) => {
+  const frame = $("#listenFrame");
+  if (frame) frame.contentWindow.postMessage(JSON.stringify({ ...message, id: 1, channel: "widget" }), LISTEN_YT_ORIGIN);
+};
+
+// The player only reports its time once it's been asked, and it can't hear that until it has loaded.
+function listenGreetPlayer() {
+  clearInterval(listenLyric.hello);
+  let tries = 0;
+  listenLyric.hello = setInterval(() => {
+    if (listenLyric.ready || !$("#listenFrame") || ++tries > 40) return clearInterval(listenLyric.hello);
+    listenPlayerSay({ event: "listening" });
+  }, 500);
+}
+
+function listenSongSeek(v, seconds) {
+  const time = Math.max(0, seconds);
+  if (!listenLyric.ready) { // not talking yet, so fall back on reloading the player at that time
+    $("#listenFrame").src = listenSrc(v.id, time, true, true);
+    listenGreetPlayer();
+    return;
+  }
+  listenPlayerSay({ event: "command", func: "seekTo", args: [time, true] });
+  listenPlayerSay({ event: "command", func: "playVideo", args: [] });
+  listenLyric.touched = 0;
+}
+
+function listenFollow(time) {
+  const v = VIDEOS.find((x) => x.id === listenState.open);
+  const lines = listenLyric.lines;
+  if (!v || !lines.length) return;
+  const shift = listenShift(v);
+  let at = -1;
+  for (let i = 0; i < lines.length && lines[i].t + shift <= time; i++) at = i;
+  if (at === listenLyric.at) return;
+  listenLyric.at = at;
+  const box = $("#listenLyrics");
+  $$(".listen-line.now", box).forEach((b) => b.classList.remove("now"));
+  const line = at >= 0 && $(`.listen-line[data-line="${at}"]`, box);
+  if (!line) return; // a gap between lines
+  line.classList.add("now");
+  if (Date.now() - listenLyric.touched < 4000) return;
+  // Moves only the lyrics box, never the page.
+  const top = line.offsetTop - (box.clientHeight - line.offsetHeight) / 2;
+  box.scrollTo({ top, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+
+addEventListener("message", (e) => {
+  const frame = $("#listenFrame");
+  if (!frame || e.source !== frame.contentWindow || typeof e.data !== "string") return;
+  let data;
+  try { data = JSON.parse(e.data); } catch { return; }
+  listenLyric.ready = true;
+  // A label can stop its video playing on other sites, which YouTube only says once the player has loaded.
+  if (data.event === "onError" && [100, 101, 150].includes(data.info) && !$("#listenBlocked")) {
+    $(".listen-frame").insertAdjacentHTML("afterend", `<p class="small muted" id="listenBlocked">This video won't play here. <a href="https://www.youtube.com/watch?v=${listenEsc(listenState.open)}" target="_blank" rel="noopener">Open it on YouTube</a>, and the lyrics are still below.</p>`);
+  }
+  const time = data.info && data.info.currentTime;
+  if (typeof time === "number") listenFollow(time);
+});
