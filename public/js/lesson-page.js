@@ -53,8 +53,8 @@ function renderLessons() {
 
 function linkLabel(link) {
   if (link.tab === "particles") return `Particles: <span lang="ja">${PARTICLES.find((p) => p.id === link.id).p}</span>`;
-  if (link.tab === "patterns") return `Patterns: <span lang="ja">${VERB_PATTERNS.find((p) => p.id === link.id).title}</span>`;
-  if (link.tab === "verbs") return `Verbs: ${FORM[link.form].label}`;
+  if (link.tab === "patterns") return `Patterns: <span lang="ja">${ruby(VERB_PATTERNS.find((p) => p.id === link.id).title)}</span>`;
+  if (link.tab === "verbs") return link.keigo ? "Verbs: Polite language" : `Verbs: ${FORM[link.form].label}`;
   if (link.tab === "adjectives") return "Adjectives";
   return "Sentence blocks";
 }
@@ -71,8 +71,9 @@ function goTo(link) {
   showTab(link.tab);
   window.scrollTo({ top: 0 });
   if (link.tab === "particles") { showParticle(link.id); scrollBelowBar($("#pDetail")); }
-  if (link.tab === "patterns") scrollBelowBar($("#pat-" + link.id));
-  if (link.tab === "verbs") { verbForm = link.form; updateVerb(); scrollBelowBar($("#conjOut")); }
+  if (link.tab === "patterns") { clearPatternSearch(); $("#pat-" + link.id).open = true; scrollBelowBar($("#pat-" + link.id)); }
+  if (link.tab === "verbs" && link.keigo) scrollBelowBar($("#keigoCard"));
+  else if (link.tab === "verbs") { verbForm = link.form; updateVerb(); scrollBelowBar($("#conjOut")); }
 }
 
 function showLesson(n, scroll) {
@@ -317,7 +318,7 @@ function sentenceQ(d) {
   };
 }
 
-const isFormLink = (k) => k && ((k.tab === "verbs" && k.form !== "dict") || k.tab === "patterns");
+const isFormLink = (k) => k && ((k.tab === "verbs" && k.form && k.form !== "dict") || k.tab === "patterns");
 
 function formQ(link) {
   const q = link.tab === "verbs" ? makeVerbQ(link.form) : makePatternQ(link.id);

@@ -583,6 +583,39 @@ function renderVerbs() {
         </div>
         <p class="small muted" lang="ja">Sneaky godan verbs that look ichidan: ${["帰[かえ]る", "入[はい]る", "走[はし]る", "知[し]る", "切[き]る", "要[い]る"].map(ruby).join("、")}</p>
       </div>
+    </div>
+
+    <div class="card" id="keigoCard">
+      <h2>Polite language: respectful and humble</h2>
+      <p>Who's doing the action decides which one you use. <b>Respectful</b> (尊敬語) lifts up someone else who's doing it.
+      <b>Humble</b> (謙譲語) lowers you when you're the one doing it.</p>
+      <div class="grid2">
+        <div class="keigo-rule">
+          <div class="step-label">Respectful, with most verbs</div>
+          <div class="keigo-formula" lang="ja">お + ます-stem + になる</div>
+          <div lang="ja">${ruby("先生[せんせい]はもうお帰[かえ]りになりました。")}</div>
+          <div class="muted small">The teacher has already gone home.</div>
+          <div class="muted small">The passive form also works as respectful: ${ruby("帰[かえ]られました")}.</div>
+        </div>
+        <div class="keigo-rule">
+          <div class="step-label">Humble, with most verbs</div>
+          <div class="keigo-formula" lang="ja">お + ます-stem + する</div>
+          <div lang="ja">${ruby("荷物[にもつ]をお持[も]ちします。")}</div>
+          <div class="muted small">Let me carry your bag.</div>
+          <div class="muted small">Only for something you do for the other person.</div>
+        </div>
+      </div>
+      <div class="step-label">Verbs with their own special word</div>
+      <div class="table-wrap">
+        <table class="ftable keigo-table">
+          <tr><th>Normal</th><th>Respectful</th><th>Humble</th></tr>
+          ${KEIGO.map((k) => `<tr>
+            <td lang="ja">${ruby(k.w)} <span class="muted small" lang="en">${k.en}</span></td>
+            <td lang="ja">${ruby(k.up)}</td>
+            <td lang="ja">${ruby(k.down)}</td>
+          </tr>`).join("")}
+        </table>
+      </div>
     </div>`;
 
   $$("#verbs [data-v]").forEach((b) => (b.onclick = () => { track("explore.verbs"); verbIdx = +b.dataset.v; updateVerb(); }));
@@ -611,6 +644,7 @@ function updateVerb() {
     <div class="conj-meaning"><span class="gbadge">${g.label}</span> “${f.meaning.replace(/\{v\}/g, v.en)}”</div>
     <p class="conj-explain">${c.explain}</p>
     ${v.note ? `<div class="note">${v.note}</div>` : ""}
+    ${f.note ? `<div class="note" lang="en">${f.note}</div>` : ""}
     <div class="conj-viz">${vizHTML(c.viz, v)}</div>`;
 
   $("#formTable").innerHTML = `
@@ -704,6 +738,8 @@ function vizHTML(z, v) {
       <p class="viz-note">Watch the reading of <span lang="ja">来</span>: き・こ・く. That's the part to memorize.</p>`;
   }
 
+  if (z.type === "add") return `<p class="viz-note">This works the same way for all three verb groups.</p>`;
+
   return `<p class="viz-note">Ichidan verbs always end in <b lang="ja">る</b>. Pick a form above to see it change.</p>`;
 }
 
@@ -783,78 +819,48 @@ function drawAdj(type) {
 
 /* ---------------------------------------------------------------- Verb patterns */
 
-const PATTERN_SVG = {
-  teiru: `<text x="10" y="18" class="t">action in progress</text>
-       <line x1="10" y1="36" x2="210" y2="36" class="s-mute" stroke-width="2"/>
-       <rect x="40" y="28" width="150" height="16" rx="8" fill="currentColor" opacity=".3"/>
-       <rect x="40" y="28" width="90" height="16" rx="8" fill="currentColor"/>
-       <text x="10" y="70" class="t">result that stays</text>
-       <line x1="10" y1="88" x2="210" y2="88" class="s-mute" stroke-width="2"/>
-       <rect x="50" y="83" width="160" height="10" rx="5" fill="currentColor" opacity=".3"/>
-       <circle cx="50" cy="88" r="8" fill="currentColor"/>
-       <line x1="130" y1="22" x2="130" y2="100" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-       <text x="130" y="112" text-anchor="middle" class="t">now</text>`,
-  tai: `<circle cx="45" cy="62" r="14" class="f-mute" opacity=".6"/>
-       <path d="M22 104 q23 -34 46 0z" class="f-mute" opacity=".6"/>
-       <circle cx="72" cy="46" r="4" fill="currentColor" opacity=".5"/>
-       <circle cx="86" cy="35" r="6" fill="currentColor" opacity=".65"/>
-       <ellipse cx="150" cy="40" rx="58" ry="32" fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-width="3"/>
-       <path d="M150 60 C122 42 130 20 150 32 C170 20 178 42 150 60Z" fill="currentColor"/>
-       <text x="150" y="96" text-anchor="middle" class="t">I want to…</text>`,
-  kudasai: `<circle cx="36" cy="58" r="16" class="f-mute" opacity=".6"/>
-       <text x="36" y="94" text-anchor="middle" class="t">me</text>
-       <circle cx="184" cy="58" r="16" fill="currentColor"/>
-       <text x="184" y="94" text-anchor="middle" class="t">you</text>
-       <rect x="62" y="14" width="96" height="26" rx="13" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="2"/>
-       <text x="110" y="31" text-anchor="middle" class="t">please do it</text>
-       <line x1="58" y1="62" x2="156" y2="62" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-       <polyline points="146,52 158,62 146,72" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`,
-  temoii: `<line x1="16" y1="60" x2="166" y2="60" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-dasharray="1 10"/>
-       <rect x="96" y="22" width="8" height="70" rx="3" class="f-mute"/>
-       <rect x="136" y="22" width="8" height="70" rx="3" class="f-mute"/>
-       <path d="M104 28 L78 16 L78 82 L104 88Z" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
-       <circle cx="190" cy="60" r="18" fill="currentColor"/>
-       <polyline points="181,60 188,67 200,53" fill="none" class="s-surface" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-       <text x="120" y="110" text-anchor="middle" class="t">the way is open</text>`,
-  nakereba: `<circle cx="22" cy="58" r="7" fill="currentColor"/>
-       <path d="M29 58 C70 58 80 22 128 22" fill="none" class="s-mute" stroke-width="3" stroke-dasharray="6 6"/>
-       <path d="M29 58 C70 58 80 92 128 92" fill="none" stroke="currentColor" stroke-width="4"/>
-       <g class="s-mute" stroke-width="4" stroke-linecap="round"><line x1="138" y1="13" x2="156" y2="31"/><line x1="156" y1="13" x2="138" y2="31"/></g>
-       <text x="164" y="27" class="t">don't = ✗</text>
-       <circle cx="147" cy="92" r="12" fill="currentColor"/>
-       <polyline points="141,92 146,97 154,87" fill="none" class="s-surface" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-       <text x="164" y="97" class="t">do = ✓</text>`,
-};
-
 const PATTERN_BASE_LABEL = {
   te: "Built on the <b>て-form</b>",
   stem: "Built on the <b>ます-form minus ます</b>",
-  nai: "Built on the <b>ない-form</b>: ない → なければならない",
+  nai: "Built on the <b>ない-form minus ない</b>",
+  naif: "Built on the whole <b>ない-form</b>",
+  dict: "Built on the <b>dictionary form</b>",
+  ta: "Built on the <b>た-form</b>",
+  plain: "Built on the <b>plain form</b> (shown here in the present)",
+  vol: "Built on the <b>volitional form</b>",
 };
 
-const BASE_NAME = { te: "て-form", stem: "ます-stem", nai: "ない-form", dict: "dictionary form" };
+const BASE_NAME = { te: "て-form", stem: "ます-stem", nai: "ない-form minus ない", naif: "ない-form", dict: "dictionary form", ta: "た-form", plain: "plain form", vol: "volitional form" };
 
 // The verb part a pattern attaches to, as display parts from conjugate().
 // `group` can be overridden to build wrong answers for the quiz.
 function patternBase(v, base, group = v.group) {
-  if (base === "dict") return [{ m: v.w, cls: "stem" }];
-  if (base === "te") return conjugate(v, "te", group).parts;
+  if (base === "dict" || base === "plain") return [{ m: v.w, cls: "stem" }];
+  if (base === "te" || base === "ta" || base === "vol") return conjugate(v, base, group).parts;
+  if (base === "naif") return conjugate(v, "nai", group).parts;
   return conjugate(v, base === "stem" ? "masu" : "nai", group).parts.slice(0, -1); // drop ます / ない
 }
 const partsText = (parts) => parts.filter((p) => p.cls !== "drop").map((p) => p.m).join("");
+const patEn = (p, v) => p.en.replace("{v}", v.en).replace("{v}", v.en).replace("{ing}", v.ing).replace("{pp}", v.pp);
 
 let patVerb = 0;
 
 function renderPatterns() {
+  const inGroup = (g) => VERB_PATTERNS.filter((p) => patGroupOf(p) === g.id).sort((a, b) => a.lesson - b.lesson);
   $("#patterns").innerHTML = `
     <div class="card hero">
       <h1>Verb <span class="accent">patterns</span>: snap an ending onto a verb</h1>
       <p>Most grammar patterns are just <b>a verb form + a fixed ending</b>. The verb part changes;
-      the pattern part never does. Learn which verb form each pattern needs, and it works with every verb.</p>
+      the pattern part never does. Here are the ${VERB_PATTERNS.length} main ones from Minna no Nihongo, grouped by the
+      verb form they need. Open any of them to see how it works.</p>
       <div class="pat-nav">
-        ${VERB_PATTERNS.map((p) => `<button class="pat-jump" data-jump="${p.id}" style="--pc:${p.color}" lang="ja">${p.title}</button>`).join("")}
+        ${PATTERN_GROUPS.map((g) => `<button class="pat-jump" data-jump="${g.id}" style="--pc:${g.color}" lang="ja">${g.label} <span class="pat-count">${inGroup(g).length}</span></button>`).join("")}
       </div>
+      <input type="search" class="pat-search" id="patSearch" placeholder="Search in English or Japanese: must, because, ている…" aria-label="Search the patterns">
+      <p class="small muted pat-found" id="patFound" hidden></p>
     </div>
+
+    ${compareCardHTML()}
 
     <div class="card pat-picker">
       <div class="step-label">Pick a verb — every pattern below updates</div>
@@ -863,30 +869,71 @@ function renderPatterns() {
       </div>
     </div>
 
-    ${VERB_PATTERNS.map(patternCardHTML).join("")}`;
+    ${PATTERN_GROUPS.map((g) => `
+      <section class="pat-group" id="patg-${g.id}" style="--pc:${g.color}">
+        <h2 lang="ja">${g.label}</h2>
+        <p class="muted small" lang="ja">${g.about}</p>
+      </section>
+      ${inGroup(g).map(patternCardHTML).join("")}`).join("")}`;
 
   $$("#patterns [data-pv]").forEach((b) => (b.onclick = () => { track("explore.patterns"); patVerb = +b.dataset.pv; updatePatternVerb(); }));
+  $$("#cmpCard [data-cmp]").forEach((b) => (b.onclick = () => showCompare(b.dataset.cmp)));
+  $$("#patterns [data-practice]").forEach((b) => (b.onclick = () => practicePattern(b.dataset.practice)));
+  $$("#patterns [data-see-cmp]").forEach((b) => (b.onclick = () => openCompare(b.dataset.seeCmp)));
+  $("#patSearch").oninput = filterPatterns;
   $$("#patterns [data-jump]").forEach((b) => (b.onclick = () => {
-    const card = $("#pat-" + b.dataset.jump);
-    const offset = $(".topbar").offsetHeight + ($(".pat-picker").offsetHeight || 0) + 16;
-    window.scrollTo({ top: card.getBoundingClientRect().top + scrollY - offset, behavior: "smooth" });
+    const head = $("#patg-" + b.dataset.jump);
+    const picker = $(".pat-picker");
+    const offset = $(".topbar").offsetHeight + (getComputedStyle(picker).position === "sticky" ? picker.offsetHeight : 0) + 16;
+    window.scrollTo({ top: head.getBoundingClientRect().top + scrollY - offset, behavior: "smooth" });
   }));
   updatePatternVerb();
+}
+
+// Everything a search can match on a card.
+const patSearchText = (p) => [
+  plain(p.title), kana(p.title), plain(p.ending), kana(p.ending), p.name, p.meaning, p.en.replace(/\{\w+\}/g, ""),
+  ...p.forms.flatMap((f) => [plain(f.e), kana(f.e), f.m]),
+].join(" ").toLowerCase();
+
+function filterPatterns() {
+  const words = $("#patSearch").value.toLowerCase().replace(/[〜~]/g, " ").split(/\s+/).filter(Boolean);
+  let found = 0;
+  VERB_PATTERNS.forEach((p) => {
+    const on = words.every((w) => patSearchText(p).includes(w));
+    $("#pat-" + p.id).style.display = on ? "" : "none";
+    if (on) found++;
+  });
+  PATTERN_GROUPS.forEach((g) => {
+    const any = VERB_PATTERNS.some((p) => patGroupOf(p) === g.id && $("#pat-" + p.id).style.display !== "none");
+    $("#patg-" + g.id).style.display = any ? "" : "none";
+  });
+  // The comparisons would push the results off the screen.
+  $("#cmpCard").style.display = words.length ? "none" : "";
+  const note = $("#patFound");
+  note.hidden = !words.length;
+  note.textContent = found ? `${found} of ${VERB_PATTERNS.length} patterns match` : "Nothing matches. Try another word, like “want” or “たい”.";
+}
+
+function clearPatternSearch() {
+  $("#patSearch").value = "";
+  filterPatterns();
 }
 
 function patternCardHTML(p) {
   const literal = p.literal.map((b) => `
     <div class="lit-block${b.verb ? " verb" : ""}">
-      <span class="lit-t" lang="ja">${b.t}</span>
+      <span class="lit-t" lang="ja">${ruby(b.t)}</span>
       <span class="lit-g">${b.g}</span>
     </div>`).join('<span class="fplus">+</span>');
 
   return `
-    <article class="card pat-card" id="pat-${p.id}" style="--pc:${p.color}; --c:${p.color}">
-      <header class="pat-head">
-        <span class="pat-title" lang="ja">${p.title}</span>
-        <div><div class="pd-name">${p.name}</div><div class="pat-meaning">${p.meaning}</div></div>
-      </header>
+    <details class="card pat-card" id="pat-${p.id}" style="--pc:${p.color}; --c:${p.color}">
+      <summary class="pat-head">
+        <span class="pat-title" lang="ja">${ruby(p.title)}</span>
+        <div class="pat-sum"><div class="pd-name">${p.name}</div><div class="pat-meaning">${p.meaning}</div></div>
+        <span class="pat-lesson">Lesson ${p.lesson}</span>
+      </summary>
       <div class="pat-top">
         <div class="pd-visual">
           <svg viewBox="0 0 220 115" class="psvg" aria-hidden="true">${PATTERN_SVG[p.id]}</svg>
@@ -913,23 +960,55 @@ function patternCardHTML(p) {
         <div>
           <div class="step-label">Forms of the pattern</div>
           <table class="ftable pat-forms">
-            ${p.forms.map((f) => `<tr><td lang="ja">${f.e}</td><td class="muted small">${f.m}</td></tr>`).join("")}
+            ${p.forms.map((f) => `<tr><td lang="ja">${ruby(f.e)}</td><td class="muted small">${f.m}</td></tr>`).join("")}
           </table>
         </div>
         <div class="tip"><b>Tip</b> ${p.tip}</div>
       </div>
-    </article>`;
+      <div class="pat-actions">
+        <button class="btn primary" data-practice="${p.id}">Practice this →</button>
+        ${COMPARISONS.filter((c) => c.patterns.includes(p.id)).map((c) => `<button class="btn" data-see-cmp="${c.id}">Compare: <span lang="ja">${ruby(c.title)}</span></button>`).join("")}
+      </div>
+    </details>`;
+}
+
+// Plain-form patterns take more than the present tense. One switch, shared by all those cards.
+const PLAIN_TENSES = [["pres", "Present"], ["neg", "Negative"], ["past", "Past"], ["pneg", "Past negative"], ["iadj", "い-adj"], ["naadj", "な-adj"], ["noun", "Noun"]];
+let patTense = "pres";
+
+function plainTryHTML(p, v) {
+  const nai = conjugate(v, "nai").parts;
+  const join = PLAIN_JOIN[p.id];
+  const withJoin = (m, j) => [{ m, cls: "stem" }, ...(j ? [{ m: j, cls: "suffix" }] : [])];
+  const [parts, about] = {
+    pres: () => [patternBase(v, "plain"), `“${patEn(p, v)}”`],
+    neg: () => [nai, `The same pattern with “don't ${v.en}”`],
+    past: () => [conjugate(v, "ta").parts, `The same pattern, about the past (“${v.en}” in the past)`],
+    pneg: () => [[...nai.slice(0, -1), { m: "なかった", cls: "suffix" }], `The same pattern, with “didn't ${v.en}”`],
+    iadj: () => [withJoin("高[たか]い"), "高い = expensive. い-adjectives join directly."],
+    naadj: () => [withJoin("静[しず]か", join.na), `静か = quiet. ${join.na ? `な-adjectives need ${join.na} here.` : "な-adjectives join directly here, with no だ."}`],
+    noun: () => [withJoin("雨[あめ]", join.n), `雨 = rain. ${join.n ? `Nouns need ${join.n} here.` : "Nouns join directly here, with no だ."}`],
+  }[patTense]();
+  return `
+    <div class="pat-tenses">${PLAIN_TENSES.map(([id, label]) => `<button class="pat-tense${id === patTense ? " active" : ""}" data-tense="${id}" lang="ja">${label}</button>`).join("")}</div>
+    <div class="conj-word" lang="ja" style="--gc:${GROUPS[v.group].color}">${partsHTML(parts)}<span class="vp pat">${ruby(p.ending)}</span></div>
+    <div class="pat-try-en">${about}</div>`;
 }
 
 function updatePatternVerb() {
   const v = VERBS[patVerb];
   $$("#patterns [data-pv]").forEach((b) => b.classList.toggle("active", +b.dataset.pv === patVerb));
   VERB_PATTERNS.forEach((p) => {
+    if (p.base === "plain") {
+      $(`[data-try="${p.id}"]`).innerHTML = plainTryHTML(p, v);
+      return;
+    }
     $(`[data-try="${p.id}"]`).innerHTML = `
-      <div class="conj-word" lang="ja" style="--gc:${GROUPS[v.group].color}">${partsHTML(patternBase(v, p.base))}<span class="vp pat">${p.ending}</span></div>
-      <div class="pat-try-en">“${p.en.replace("{v}", v.en).replace("{ing}", v.ing)}”</div>
+      <div class="conj-word" lang="ja" style="--gc:${GROUPS[v.group].color}">${partsHTML(patternBase(v, p.base))}<span class="vp pat">${ruby(p.ending)}</span></div>
+      <div class="pat-try-en">“${patEn(p, v)}”</div>
       <div class="small muted" lang="ja">${PATTERN_BASE_LABEL[p.base]} · <span class="gbadge" style="--gc:${GROUPS[v.group].color}">${GROUPS[v.group].label}</span></div>`;
   });
+  $$("#patterns [data-tense]").forEach((b) => (b.onclick = () => { track("explore.patterns"); patTense = b.dataset.tense; updatePatternVerb(); }));
 }
 
 /* ---------------------------------------------------------------- Practice */
@@ -1019,17 +1098,18 @@ function pickWrong(correct, likely, backup) {
 // Build a pattern from a verb. Wrong answers attach the ending to the wrong verb form,
 // or build the right form with the wrong group's rules.
 function makePatternQ(patId) {
-  const v = pick(VERBS);
   const p = patId ? VERB_PATTERNS.find((x) => x.id === patId) : pick(VERB_PATTERNS);
+  const v = pick(VERBS.filter((x) => !(p.not || []).includes(x.w)));
   const g = GROUPS[v.group];
   const other = v.group === "godan" ? "ichidan" : "godan";
   const build = (base, group) => partsText(patternBase(v, base, group)) + p.ending;
   const correct = build(p.base);
 
-  // 書いてたい is real casual speech (〜ていたい), so don't offer the て-form for 〜たい.
-  const wrongBases = ["te", "stem", "nai", "dict"].filter((b) => b !== p.base && !(p.id === "tai" && b === "te"));
+  // Plain-form patterns accept the dictionary form and the た-form, so neither can be a wrong answer.
+  const notWrong = [p.base, ...(p.avoid || []), ...(p.base === "plain" ? ["dict", "ta"] : [])];
+  const wrongBases = ["te", "stem", "nai", "dict", "ta"].filter((b) => !notWrong.includes(b));
   const likely = [
-    ...wrongBases.map((b) => ({ text: build(b), why: `That uses the <b>${BASE_NAME[b]}</b>, but <b lang="ja">${p.title}</b> needs the <b>${BASE_NAME[p.base]}</b>.` })),
+    ...wrongBases.map((b) => ({ text: build(b), why: `That uses the <b>${BASE_NAME[b]}</b>, but <b lang="ja">${ruby(p.title)}</b> needs the <b>${BASE_NAME[p.base]}</b>.` })),
     { text: build(p.base, other), why: `That's the ${BASE_NAME[p.base]} built with <b>${GROUPS[other].label}</b> rules — but <b lang="ja">${plain(v.w)}</b> is <b>${g.label}</b>.` },
   ];
   const backup = wrongBases.filter((b) => b !== "dict").map((b) => ({
@@ -1039,22 +1119,27 @@ function makePatternQ(patId) {
 
   const baseForm = {
     te: () => `て-form: <span lang="ja">${ruby(conjugate(v, "te").result)}</span>`,
+    ta: () => `た-form: <span lang="ja">${ruby(conjugate(v, "ta").result)}</span>`,
+    vol: () => `volitional: <span lang="ja">${ruby(conjugate(v, "vol").result)}</span>`,
     stem: () => `ます-form: <span lang="ja">${ruby(conjugate(v, "masu").result)}</span> → drop ます`,
     nai: () => `ない-form: <span lang="ja">${ruby(conjugate(v, "nai").result)}</span> → swap ない`,
+    naif: () => `ない-form: <span lang="ja">${ruby(conjugate(v, "nai").result)}</span>`,
+    dict: () => `dictionary form: <span lang="ja">${ruby(v.w)}</span>`,
+    plain: () => `plain form: <span lang="ja">${ruby(v.w)}</span>`,
   }[p.base]();
 
   return {
-    prompt: `<div class="q-sentence" lang="ja">${ruby(v.w)} <span class="arrow">+</span> <span class="q-pat" style="--pc:${p.color}">${p.title}</span></div>
-      ${hintEn(`“${p.en.replace("{v}", v.en).replace("{ing}", v.ing)}”`)}`,
+    prompt: `<div class="q-sentence" lang="ja">${ruby(v.w)} <span class="arrow">+</span> <span class="q-pat" style="--pc:${p.color}">${ruby(p.title)}</span></div>
+      ${hintEn(`“${patEn(p, v)}”`)}`,
     options: shuffle([{ text: correct }, ...wrong]).map((o) => ({
       html: ruby(o.text), value: o.text, correct: o.text === correct, why: o.why,
     })),
     feedback: (chosen) => `<div class="fb-grid fb-pat" style="--c:${p.color}; --pc:${p.color}">
         <svg viewBox="0 0 220 115" class="psvg" aria-hidden="true">${PATTERN_SVG[p.id]}</svg>
         <div>
-          <div class="conj-word" lang="ja" style="--gc:${g.color}">${partsHTML(patternBase(v, p.base))}<span class="vp pat">${p.ending}</span></div>
+          <div class="conj-word" lang="ja" style="--gc:${g.color}">${partsHTML(patternBase(v, p.base))}<span class="vp pat">${ruby(p.ending)}</span></div>
           ${chosen.correct ? "" : `<p>${chosen.why}</p>`}
-          <p><b lang="ja">${p.title}</b> ${PATTERN_BASE_LABEL[p.base].replace("Built on", "is built on")}. ${baseForm}</p>
+          <p><b lang="ja">${ruby(p.title)}</b> ${PATTERN_BASE_LABEL[p.base].replace("Built on", "is built on")}. ${baseForm}</p>
           <p class="small muted"><span class="gbadge" style="--gc:${g.color}">${g.label}</span> ${p.name}: ${p.meaning}</p>
         </div>
       </div>`,

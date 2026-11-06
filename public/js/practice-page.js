@@ -197,7 +197,7 @@ const QUIZ_KINDS = {
   },
   patterns: {
     name: "Patterns", kind: "Build the pattern",
-    focus: () => VERB_PATTERNS.map((p) => [p.id, p.title, true]),
+    focus: () => VERB_PATTERNS.map((p) => [p.id, plain(p.title), true]),
     make: (f) => makePatternQ(f || undefined),
   },
   mixed: { name: "Mixed", kind: "", focus: () => [], make: () => null },
@@ -244,6 +244,17 @@ function drawQuizFocus() {
   $("#quizFocusBox").hidden = !options.length;
   $("#quizFocus").innerHTML = `<option value="">Everything</option>${options.map(([v, label, ja]) => `<option value="${v}"${ja ? ' lang="ja"' : ""}>${label}</option>`).join("")}`;
   $$("#quizMode button").forEach((b) => b.classList.toggle("active", b.dataset.m === quiz.mode));
+}
+
+// From a pattern card: straight into the quick quiz, on that pattern alone.
+function practicePattern(id) {
+  store.set("practiceMode", "quiz");
+  Object.assign(quiz, { mode: "patterns", focus: id, deck: null, q: null });
+  showTab("practice");
+  drawQuizFocus();
+  $("#quizFocus").value = id;
+  window.scrollTo({ top: 0 });
+  scrollBelowBar($(".pr-quiz"));
 }
 
 function nextQuestion() {

@@ -1096,10 +1096,45 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .pat-picker .step-label { margin-bottom: 8px; }
 .pat-picker .chip { padding: 4px 12px; font-size: .95rem; }
 
-.pat-card { border-top: 5px solid var(--pc); scroll-margin-top: 200px; }
-.pat-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
-.pat-title { font-size: clamp(1.6rem, 6vw, 2.4rem); white-space: nowrap; font-weight: 700; color: var(--pc); line-height: 1.1; }
+.pat-search { display: block; width: 100%; margin-top: 14px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); font: inherit; }
+.pat-search:focus { outline: none; border-color: var(--accent); }
+.pat-found { margin: 8px 0 0; }
+.pat-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.pat-tenses { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.pat-tense { border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 999px; padding: 2px 10px; font-size: .75rem; font-weight: 600; cursor: pointer; }
+.pat-tense.active { background: var(--pc); border-color: var(--pc); color: var(--surface); }
+
+.cmp-name { margin: 16px 0 10px; }
+.cmp-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.cmp-col { padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }
+.cmp-col p { margin: 6px 0 10px; }
+.cmp-ja { font-weight: 700; font-size: 1.1rem; color: var(--accent); }
+.cmp-ex .hl { background: var(--accent); }
+.cmp-quiz { margin-top: 14px; }
+
+.keigo-rule { padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }
+.keigo-rule .step-label { margin-top: 0; }
+.keigo-formula { font-weight: 700; font-size: 1.1rem; color: var(--accent); margin-bottom: 6px; }
+.keigo-table th { text-align: left; }
+.keigo-table td { padding-top: 4px; padding-bottom: 4px; }
+
+.pat-count { font-size: .78rem; font-weight: 600; opacity: .75; margin-left: 2px; }
+.pat-group { margin: 26px 2px 10px; scroll-margin-top: 200px; }
+.pat-group h2 { margin: 0; color: var(--pc); }
+.pat-group p { margin: 2px 0 0; }
+
+.pat-card { border-left: 5px solid var(--pc); scroll-margin-top: 200px; padding-top: 14px; padding-bottom: 14px; margin-bottom: 10px; }
+.pat-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; cursor: pointer; list-style: none; }
+.pat-head::-webkit-details-marker { display: none; }
+.pat-card[open] { border-top: 5px solid var(--pc); padding-bottom: 20px; }
+.pat-card[open] .pat-head { margin-bottom: 18px; }
+.pat-sum { flex: 1 1 140px; min-width: 0; }
+.pat-lesson { font-size: .75rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.pat-lesson::after { content: " ▾"; }
+.pat-card[open] .pat-lesson::after { content: " ▴"; }
+.pat-title { font-size: clamp(1.3rem, 5vw, 1.7rem); white-space: nowrap; font-weight: 700; color: var(--pc); line-height: 1.1; }
 .pat-meaning { font-size: 1.15rem; font-weight: 600; }
+.pat-card[open] .pat-title { font-size: clamp(1.6rem, 6vw, 2.4rem); }
 .pat-top { display: grid; grid-template-columns: 250px 1fr; gap: 28px; align-items: start; }
 .pat-top .pd-idea { font-size: 1.05rem; font-weight: 500; }
 
