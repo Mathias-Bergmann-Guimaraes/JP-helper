@@ -3,18 +3,20 @@
 
 /* ---------------------------------------------------------------- Lessons (Minna no Nihongo order) */
 
-// tests: best test score per lesson. A lesson counts as finished once its test is passed.
+// tests: best test score per lesson. A lesson counts as finished once its test is passed, or a big
+// test that covers it is (see lesson-big.js). big: best score of each big test.
 // stars: best result (0–3) of each grammar point's 5-question check, keyed "lesson.point".
-const lessonState = { n: store.get("lesson", 1), tests: store.get("lessonTests", {}), stars: store.get("pointStars", {}) };
+const lessonState = { n: store.get("lesson", 1), tests: store.get("lessonTests", {}), stars: store.get("pointStars", {}), big: store.get("bigTests", {}) };
 const TEST_LEN = 10;
 const PASS_MARK = 8;
 const CHECK_LEN = 5;
-const lessonPassed = (n) => (lessonState.tests[n] || 0) >= PASS_MARK;
+const lessonTestPassed = (n) => (lessonState.tests[n] || 0) >= PASS_MARK;
+const lessonPassed = (n) => lessonTestPassed(n) || !!finishedByBig(n);
 const pointStars = (n, i) => lessonState.stars[`${n}.${i}`] || 0;
 const lessonStars = (l) => l.points.reduce((s, _, i) => s + pointStars(l.n, i), 0);
 
 // XP per right answer, and bonuses for finishing things.
-const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10, write: 20, rewrite: 6, build: 4 };
+const XP = { practice: 2, combo: 4, check: 5, star: 10, test: 3, pass: 50, repass: 10, write: 20, rewrite: 6, build: 4, big: 100, book: 300, rebig: 20 };
 const COMBO_AT = 5;
 
 function renderLessons() {
@@ -25,7 +27,8 @@ function renderLessons() {
       <p>All 50 lessons of <span lang="ja">みんなの日本語 初級 Ⅰ・Ⅱ</span>, one after another. Each grammar point comes with an example,
       and <b>See it →</b> jumps to the picture that explains it. <b>Check</b> each point with 5 quick questions to earn up to
       three stars, <b>write</b> three sentences of your own for extra XP, then pass the lesson test to finish the
-      lesson. Every right answer earns XP.</p>
+      lesson. Every few lessons a <b>big test</b> covers everything since the last one, and passing it finishes all of
+      those lessons at once. Each book ends with a final. Every right answer earns XP.</p>
       ${hudHTML()}
     </div>
     <div class="card lquiz rl" id="review"></div>
@@ -33,13 +36,15 @@ function renderLessons() {
     <div class="lessons-layout">
       <nav class="card lpath" aria-label="Lessons">
         <div class="book-label">Book I · <span lang="ja">初級 Ⅰ</span></div>
-        <div class="lnodes">${LESSONS.filter((l) => l.n <= 25).map(node).join("")}</div>
+        <div class="lnodes">${bookNodesHTML(1, 25, node)}</div>
         <div class="book-label">Book II · <span lang="ja">初級 Ⅱ</span></div>
-        <div class="lnodes">${LESSONS.filter((l) => l.n > 25).map(node).join("")}</div>
+        <div class="lnodes">${bookNodesHTML(26, 50, node)}</div>
       </nav>
       <div id="lessonDetail"></div>
+      <div id="bigDetail" hidden></div>
     </div>`;
   $$("#lessons [data-l]").forEach((b) => (b.onclick = () => showLesson(+b.dataset.l, true)));
+  $$("#lessons [data-big]").forEach((b) => (b.onclick = () => showBig(b.dataset.big, true)));
   renderHud();
   showLesson(lessonState.n);
   renderReview();
@@ -72,6 +77,7 @@ function goTo(link) {
 
 function showLesson(n, scroll) {
   const l = LESSONS.find((x) => x.n === n) || LESSONS[0];
+  closeBig();
   lessonState.n = l.n;
   store.set("lesson", l.n);
   const prev = LESSONS.find((x) => x.n === l.n - 1);
@@ -135,6 +141,7 @@ function showLesson(n, scroll) {
       <p class="small muted">${TEST_LEN} questions. Get ${PASS_MARK} or more right to finish the lesson.</p>
     </div>
     <div class="card lquiz ltest" id="lTest"></div>
+    <div class="card big-hint" id="lBigHint"></div>
     <div class="lesson-nav">
       ${prev ? `<button class="btn" data-go="${prev.n}">‹ ${prev.n}. ${prev.title}</button>` : "<span></span>"}
       ${next ? `<button class="btn" data-go="${next.n}">${next.n}. ${next.title} ›</button>` : ""}
@@ -163,7 +170,7 @@ function updateLessonPath() {
   $$("#lessons [data-l]").forEach((b) => {
     const n = +b.dataset.l;
     const l = LESSONS.find((x) => x.n === n);
-    b.classList.toggle("active", n === lessonState.n);
+    b.classList.toggle("active", n === lessonState.n && !bigUI.open);
     b.classList.toggle("done", lessonPassed(n));
     // The ring around the number fills up with the lesson's stars.
     $(".lnum", b).style.setProperty("--p", `${(lessonStars(l) / (l.points.length * 3)) * 100}%`);
@@ -171,10 +178,11 @@ function updateLessonPath() {
   const count = LESSONS.filter((l) => lessonPassed(l.n)).length;
   $("#lProgressBar").style.width = `${(count / LESSONS.length) * 100}%`;
   $("#lProgressText").textContent = `${count} / ${LESSONS.length}`;
+  updateBigNodes();
 
   // Keep the selected lesson visible inside the scrollable lesson list.
   const path = $(".lpath");
-  const node = $(`#lessons [data-l="${lessonState.n}"]`);
+  const node = bigUI.open ? $(`#lessons [data-big="${bigUI.open}"]`) : $(`#lessons [data-l="${lessonState.n}"]`);
   if (path.scrollHeight > path.clientHeight &&
       (node.offsetTop < path.scrollTop || node.offsetTop > path.scrollTop + path.clientHeight - 40)) {
     path.scrollTop = node.offsetTop - path.clientHeight / 2;
@@ -203,7 +211,8 @@ function renderLessonStatus(l) {
       <span class="lmastery-write" title="Grammar points you've written your own sentences for">✎ <b>${writtenCount(l)}</b> / ${l.points.length} written</span>
     </div>
     <div class="lstatus-row">
-      ${lessonPassed(l.n) ? `<span class="lstatus done">✓ Lesson finished · best test score ${best} / ${TEST_LEN}</span>` : ""}
+      ${lessonTestPassed(l.n) ? `<span class="lstatus done">✓ Lesson finished · best test score ${best} / ${TEST_LEN}</span>`
+        : lessonPassed(l.n) ? `<span class="lstatus done">✓ Lesson finished by passing ${finishedByBig(l.n).name}</span>` : ""}
       ${next ? `<button class="lstatus" id="toNext">${next.html}</button>` : `<span class="lstatus done">★ Every point at three stars</span>`}
     </div>`;
   const btn = $("#toNext");
@@ -406,7 +415,7 @@ function showTestIntro(l) {
       <div>
         <p>Ten questions on the grammar of lesson ${l.n}: fill the gap, pick the meaning${lessonForms(l).length ? ", build the verb form" : ""}.
         Score <b>${PASS_MARK} / ${TEST_LEN}</b> or more and the lesson turns green on your path.</p>
-        <p class="small muted">${best === undefined ? "Not taken yet." : `Best score so far: ${best} / ${TEST_LEN}.`}</p>
+        <p class="small muted">${best === undefined ? "Not taken yet." : `Best score so far: ${best} / ${TEST_LEN}.`}${lessonPassed(l.n) && !lessonTestPassed(l.n) ? ` Already finished by ${finishedByBig(l.n).name}.` : ""}</p>
         <button class="btn primary" id="ltStart">${best === undefined ? "Start the test" : "Take the test again"}</button>
       </div>
     </div>`;
@@ -456,6 +465,9 @@ function finishTest(l, t) {
   refreshRoulette();
 
   const next = LESSONS.find((x) => x.n === l.n + 1);
+  // The last lesson of a block leads to its big test, if that's still to do.
+  const block = bigOfLesson(l.n);
+  const big = block.to === l.n && !bigPassed(block) ? block : null;
   const bonus = passed ? (wasPassed ? XP.repass : XP.pass) : 0;
   $("#lTest").innerHTML = `
     <div class="lt-result ${passed ? "pass" : "fail"}">
@@ -464,18 +476,21 @@ function finishTest(l, t) {
         <div class="lt-score"><b>${score}</b> / ${t.qs.length}${bonus ? ` <span class="xp-chip">+${bonus} XP bonus</span>` : ""}</div>
         <h3>${passed ? (wasPassed ? "Passed again!" : `Lesson ${l.n} finished!`) : "Not quite there yet"}</h3>
         <p>${passed
-          ? `<span lang="ja">合格</span> (gōkaku) means “passed”. ${next ? "On to the next lesson whenever you're ready." : "That was the last lesson — おめでとう!"}`
+          ? `<span lang="ja">合格</span> (gōkaku) means “passed”. ${big ? `That's the end of this block, so ${big.name} is next.` : next ? "On to the next lesson whenever you're ready." : "That was the last lesson — おめでとう!"}`
           : `You need ${PASS_MARK} to pass. Practise the sentences above a little more, then try again — the questions change every time.`}</p>
       </div>
     </div>
     ${missedHTML(t)}
     <div class="q-actions lt-actions">
       <button class="btn" id="ltRetry">Try again</button>
-      ${passed && next ? `<button class="btn primary" id="ltNextLesson">Lesson ${next.n}: ${next.title} ›</button>` : ""}
+      ${passed && next ? `<button class="btn${big ? "" : " primary"}" id="ltNextLesson">Lesson ${next.n}: ${next.title} ›</button>` : ""}
+      ${passed && big ? `<button class="btn primary" id="ltBig">${big.name} ›</button>` : ""}
     </div>`;
   $("#ltRetry").onclick = () => runTest(l, { qs: buildTest(l), i: 0, results: [] });
   const go = $("#ltNextLesson");
   if (go) go.onclick = () => showLesson(next.n, true);
+  const toBig = $("#ltBig");
+  if (toBig) toBig.onclick = () => showBig(big.id, true);
   if (bonus) addXP(bonus, $("#lTest .lt-score b"));
   if (passed) burst($("#lTest .lt-seal"));
 }

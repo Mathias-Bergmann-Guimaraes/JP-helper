@@ -31,6 +31,13 @@ wordings, in kanji or kana, are right straight away. Anything else waits, and wh
 answer back scores them and saves any corrections to "Your mistakes". The site itself sends nothing
 to an AI service.
 
+Every few lessons there's a **big test** on everything since the last one, spread evenly across
+those lessons, 5 questions per lesson: 1–5, 6–10, 11–16, 17–20 and 21–25 in Book I, then every five
+lessons in Book II. Each book ends with a 50-question final. They're all open from the start and take
+80% to pass. Passing one finishes every lesson it covers, so anyone who already knows the grammar can
+skip ahead, and the result shows the score lesson by lesson. The blocks are listed in
+`public/js/lesson-big.js`.
+
 The whole site is **private**. Visitors without a login only see a login page. From there they
 can pick a username and password and send an access request, which you approve by hand — or
 use a single-use invite code you gave them, which lets them in straight away. After that they
@@ -63,7 +70,7 @@ data goes to Google. Accounts, invites and sessions are saved in `data/access.js
 committed — older copies of that file are upgraded automatically.
 
 Lesson progress (test scores, stars, XP, best streak, the last lesson opened, the sentences a
-member wrote, their corrected mistakes, the daily roulettes and the review schedule) is saved per
+member wrote, their corrected mistakes, big test scores, the daily roulettes and the review schedule) is saved per
 account in `data/progress.json`, so it follows a member to every browser they log in on.
 Progress made in a browser before logins existed moves into the first account that logs in
 there. **Remove** deletes it along with the login.
