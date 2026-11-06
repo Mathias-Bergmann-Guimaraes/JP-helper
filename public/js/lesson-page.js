@@ -42,7 +42,13 @@ function renderLessons() {
     </div>`;
   $$("#lessons [data-l]").forEach((b) => (b.onclick = () => showLesson(+b.dataset.l, true)));
   $$("#lessons [data-big]").forEach((b) => (b.onclick = () => showBig(b.dataset.big, true)));
+  // Reloaded in the middle of a big test: back to that test. Its tab only opens after this.
+  const openTest = store.get("bigOpen", null);
   showLesson(lessonState.n);
+  if (openTest && bigUI.runs[openTest]) {
+    showBig(openTest);
+    requestAnimationFrame(() => { if ($("#lessons").classList.contains("active")) scrollBelowBar($("#bigDetail")); });
+  }
 }
 
 function linkLabel(link) {
@@ -208,7 +214,7 @@ function goToNextStep(l, next) {
 function openLessonTab(l) {
   showTab("lessons");
   window.scrollTo({ top: 0 });
-  if (l.n !== lessonState.n) showLesson(l.n);
+  if (l.n !== lessonState.n || bigUI.open) showLesson(l.n);
 }
 
 // Stars so far, plus one button for the most useful next step.

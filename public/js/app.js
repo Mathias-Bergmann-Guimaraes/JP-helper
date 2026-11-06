@@ -38,7 +38,8 @@ const store = {
 const progress = { sync: false, merge: {}, pending: null, sending: false };
 // Chatbot answers pasted into the site can be long, so they stay in this browser — but they still
 // belong to the account, so they go with it on log out or when someone else logs in here.
-const LOCAL_PROGRESS = ["aiFeedback", "aiAnswers", "mistakesRead", "writeLog"];
+// A big test in progress stays in this browser too.
+const LOCAL_PROGRESS = ["aiFeedback", "aiAnswers", "mistakesRead", "writeLog", "bigRun", "bigOpen", "certName"];
 
 function queueProgress(patch) {
   progress.pending = Object.assign(progress.pending || {}, patch);

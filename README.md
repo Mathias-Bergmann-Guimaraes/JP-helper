@@ -13,7 +13,8 @@ next to its correction, and comes back as a question until it's answered right t
 roulettes, on the Home and Practice tabs, test what you've already finished (a star on a point's
 check, or its lesson's test passed): Review (one random point), Lesson (one random lesson's full
 test), Mixed (questions from many points), Weak spot (your uncorrected mistakes, or your
-lowest-starred point), Build (five block sentences) and Forms (verb forms and patterns). Each pays a
+lowest-starred point), Build (five block sentences), Forms (verb forms and patterns) and Retest (the
+lessons you scored low on in a big test). Each pays a
 bonus on its first clear of the day and can be run again for normal XP, and the date flags one of
 them for extra XP. It's the same card on both tabs, so a run under way carries on from one to the other.
 
@@ -66,6 +67,14 @@ lessons in Book II. Each book ends with a 50-question final. They're all open fr
 skip ahead, and the result shows the score lesson by lesson. The blocks are listed in
 `public/js/lesson-big.js`.
 
+The last questions of each test are written: 3 to 5 on a big test and 10 on a final. They're answered
+with the colour blocks or by typing. A typed wording the site doesn't know goes to your own chatbot in
+one prompt at the end, before the score is counted. **Exam mode** hides right and wrong until the
+end. It starts on for the finals and off for the big tests. A test in progress is saved in the browser,
+so a reload carries on where it was. Grammar points missed in a big test come back in the next day's
+review, a step lower, and lessons scored under 80% unlock the **Retest** roulette until they score
+better. Passing a final gives a 修了証 certificate to save or share as an image.
+
 The whole site is **private**. Visitors without a login only see a login page. From there they
 can pick a username and password and send an access request, which you approve by hand — or
 use a single-use invite code you gave them, which lets them in straight away. After that they
@@ -98,7 +107,8 @@ data goes to Google. Accounts, invites and sessions are saved in `data/access.js
 committed — older copies of that file are upgraded automatically.
 
 Lesson progress (test scores, stars, XP and XP per day, best streak, the last lesson opened, the sentences a
-member wrote, their corrected mistakes, big test scores, the daily roulettes and the review schedule) is saved per
+member wrote, their corrected mistakes, big test scores and certificates, the daily roulettes and the review
+schedule) is saved per
 account in `data/progress.json`, so it follows a member to every browser they log in on.
 Progress made in a browser before logins existed moves into the first account that logs in
 there. **Remove** deletes it along with the login.

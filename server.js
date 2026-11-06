@@ -443,6 +443,7 @@ function touch(id) {
 const PROGRESS_MERGE = {
   lesson: "latest", lessonTests: "scores", pointStars: "scores", best: "max", game: "latest", sentences: "texts",
   mistakes: "notes", roulette: "latest", review: "dated", reviewDay: "latest", xpDays: "days", bigTests: "scores",
+  bigWeak: "latest", certs: "latest",
 };
 const MAX_HISTORY_DAYS = 366;
 const MAX_PROGRESS_BODY = 512 * 1024;
@@ -554,8 +555,9 @@ const USAGE_GROUPS = {
   },
   Roulettes: {
     "roulette.review": "Review started", "roulette.lesson": "Lesson started", "roulette.mixed": "Mixed started",
-    "roulette.weak": "Weak spot started", "roulette.build": "Build started", "roulette.forms": "Forms started", "roulette.done": "Roulettes finished",
+    "roulette.weak": "Weak spot started", "roulette.build": "Build started", "roulette.forms": "Forms started", "roulette.retest": "Retest started", "roulette.done": "Roulettes finished",
   },
+  "Big tests": { "big.start": "Big tests started", "big.done": "Big tests finished", "big.cert": "Certificates opened" },
   "Practice tab": {
     "practice.roulette": "Roulettes opened", "practice.write": "Guided writing rounds started", "practice.build": "Build opened", "practice.quiz": "Quick quiz opened",
     "quiz.particles": "Particle questions answered", "quiz.verbs": "Verb form questions answered", "quiz.adjectives": "Adjective questions answered", "quiz.patterns": "Pattern questions answered",

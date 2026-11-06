@@ -1,4 +1,4 @@
-// The daily roulettes: a board of six kinds of test on grammar you've already finished, on the Home
+// The daily roulettes: a board of seven kinds of test on grammar you've already finished, on the Home
 // and Practice tabs. Each pays a bonus the first time it's cleared each day and can be run again
 // for normal XP. Loaded after lesson-mistakes.js and uses its helpers.
 
@@ -17,6 +17,8 @@ const MIX_MIN_POINTS = 3;
 const WEAK_LEN = 5;
 const BUILD_LEN = 5;
 const FORMS_LEN = 8;
+const RETEST_LEN = 10;
+const RETEST_LESSONS = 5; // at most this many lessons in one retest
 const NEEDED_XP = 10; // extra on the roulette flagged today
 const REEL_ROWS = 28;
 const REEL_MS = 2600; // matches .rl-track in style.css
@@ -94,6 +96,11 @@ const ROULETTES = [
     locked: () => (finishedForms().length ? "" : "Finish a point on a verb form or pattern to unlock this."),
     choose: () => "forms",
   },
+  {
+    id: "retest", icon: "🔁", name: "Retest", about: "Just the lessons you scored low on in a big test.", len: RETEST_LEN, bonus: 25, each: XP.test,
+    locked: () => (weakLessons().length ? "" : "Score low on a lesson in a big test to unlock this."),
+    choose: () => "weak",
+  },
 ];
 
 const openRoulettes = () => ROULETTES.filter((r) => !r.locked());
@@ -118,6 +125,12 @@ function targetOf(r, key) {
   }
   if (key === "forms") {
     return { kind: "forms", label: `${FORMS_LEN} forms to build`, color: "var(--accent)", sub: "From the verb forms and patterns you've finished." };
+  }
+  if (key === "weak") {
+    const weak = weakLessons();
+    const shown = weak.slice(0, RETEST_LESSONS).map((l) => l.n).join(", ");
+    return { kind: "retest", label: plural(weak.length, "weak lesson"), color: "var(--accent)",
+      sub: weak.length > RETEST_LESSONS ? `${RETEST_LESSONS} of them at a time, such as lessons ${shown}.` : `Lesson${weak.length === 1 ? "" : "s"} ${shown}. Score 80% on a lesson to take it off the list.` };
   }
   if (r.id === "lesson") {
     const l = LESSONS.find((x) => x.n === +key);
@@ -174,6 +187,7 @@ function questionsFor(target) {
     const forms = finishedForms();
     return Array.from({ length: FORMS_LEN }, () => formQ(pick(forms)));
   }
+  if (target.kind === "retest") return buildRetest();
   return target.kind === "mix" ? buildMixed() : buildMistakeRun();
 }
 
@@ -266,7 +280,7 @@ function drawPanel(r, reel, body, below = "") {
 
 function remember(r, key) {
   if (r.id === "lesson") spin.recentLessons = [key, ...spin.recentLessons.filter((k) => k !== key)].slice(0, RECENT_LESSONS);
-  else if (!["mix", "mistakes", "build", "forms"].includes(key)) spin.recent = [key, ...spin.recent.filter((k) => k !== key)].slice(0, RECENT_POINTS);
+  else if (!["mix", "mistakes", "build", "forms", "weak"].includes(key)) spin.recent = [key, ...spin.recent.filter((k) => k !== key)].slice(0, RECENT_POINTS);
 }
 
 function spinRoulette(r) {
@@ -278,8 +292,9 @@ function spinRoulette(r) {
   const target = targetOf(r, key);
   if (calm()) return drawPicked(r, target);
 
-  const pool = r.id === "lesson"
-    ? finishedLessons().map((l) => targetOf(r, String(l.n)))
+  const lessonRoulette = ROULETTES.find((x) => x.id === "lesson");
+  const pool = r.id === "lesson" || r.id === "retest"
+    ? (r.id === "lesson" ? finishedLessons() : weakLessons()).map((l) => targetOf(lessonRoulette, String(l.n)))
     : finishedPoints().map((p) => targetOf(ROULETTES[0], pointKey(p)));
   const row = () => reelRow(pool.length ? pick(pool) : target);
   const rows = [row(), REEL_BLANK, row(), ...Array.from({ length: REEL_ROWS }, row), reelRow(target), row()];
@@ -396,6 +411,10 @@ function resultWords(target, score, of) {
   if (target.kind === "mistakes") return "A mistake you pick right twice counts as learned.";
   if (target.kind === "build") return score / of >= 0.8 ? "Word order: you've got it." : "The verb block comes last, and the particles say what each block does.";
   if (target.kind === "forms") return score / of >= 0.8 ? "Those forms are sticking." : "The Verbs and Patterns pages show how each form is built.";
+  if (target.kind === "retest") {
+    const left = weakLessons().length;
+    return `${target.cleared.length ? `Off the list: lesson${target.cleared.length === 1 ? "" : "s"} ${target.cleared.join(", ")}.` : "Nothing came off the list this time."} ${left ? `${plural(left, "weak lesson")} left.` : "No weak lessons left!"}`;
+  }
   return score / of >= 0.8 ? "You spotted the grammar without being told which it was." : "These are the hard ones: nothing tells you which grammar it is.";
 }
 
@@ -417,6 +436,7 @@ function finishRun(r, target, t) {
   let starXp = 0;
   if (target.kind === "point") starXp = saveCheckStars(target.l, target.i, score).gained * XP.star;
   if (target.kind === "lesson") saveTestScore(target.l, score);
+  if (target.kind === "retest") target.cleared = settleRetest(t);
   if (target.l) {
     if (target.l.n === lessonState.n) {
       if (target.kind === "point") drawPointStars(target.l, target.i);

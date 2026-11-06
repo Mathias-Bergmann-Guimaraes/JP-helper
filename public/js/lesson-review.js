@@ -86,6 +86,18 @@ function reviewFromCheck(l, i, score) {
   renderReview();
 }
 
+// A grammar point missed in a big test comes back tomorrow, a step lower. False if it isn't on the
+// schedule, because its lesson isn't finished yet.
+function reviewFromMiss(key) {
+  const old = reviewPlan[key];
+  if (!old) return false;
+  const today = dayStr();
+  const tomorrow = addDays(today, 1);
+  reviewPlan[key] = { step: Math.max(old.step - 1, 0), last: today, due: old.due < tomorrow ? old.due : tomorrow };
+  store.set("review", reviewPlan);
+  return true;
+}
+
 /* ---------------------------------------------------------------- The card */
 
 // What today's limit leaves, and what "study more" would go on to.
