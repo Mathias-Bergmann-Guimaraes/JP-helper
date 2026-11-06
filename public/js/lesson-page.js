@@ -61,7 +61,7 @@ function linkLabel(link) {
 
 // Scroll so `el` sits just below the sticky top bar (and the sticky verb picker on the Patterns page).
 function scrollBelowBar(el) {
-  let offset = $(".topbar").offsetHeight + 12;
+  let offset = barHeight() + 12;
   const picker = $(".pat-picker");
   if (el.closest("#patterns") && getComputedStyle(picker).position === "sticky") offset += picker.offsetHeight;
   window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - offset });

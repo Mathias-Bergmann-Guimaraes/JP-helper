@@ -143,6 +143,9 @@ const partsHTML = (parts) => parts.map((p) => `<span class="vp ${p.cls}">${ruby(
 
 /* ---------------------------------------------------------------- Tabs */
 
+// How much of the top of the window the bar covers: nothing once it's a sidebar on a wide screen.
+const barHeight = () => (matchMedia("(min-width: 1024px)").matches ? 0 : $(".topbar").offsetHeight);
+
 const TABS = ["home", "lessons", "structure", "particles", "verbs", "adjectives", "patterns", "practice", "mistakes"];
 
 function showTab(id) {
@@ -891,7 +894,7 @@ function renderPatterns() {
   $$("#patterns [data-jump]").forEach((b) => (b.onclick = () => {
     const head = $("#patg-" + b.dataset.jump);
     const picker = $(".pat-picker");
-    const offset = $(".topbar").offsetHeight + (getComputedStyle(picker).position === "sticky" ? picker.offsetHeight : 0) + 16;
+    const offset = barHeight() + (getComputedStyle(picker).position === "sticky" ? picker.offsetHeight : 0) + 16;
     window.scrollTo({ top: head.getBoundingClientRect().top + scrollY - offset, behavior: "smooth" });
   }));
   updatePatternVerb();
@@ -1200,7 +1203,7 @@ function init() {
   renderPatterns();
 
   // Sticky elements sit just below the top bar, whose height changes when it wraps.
-  const setBarHeight = () => document.documentElement.style.setProperty("--topbar-h", $(".topbar").offsetHeight + "px");
+  const setBarHeight = () => document.documentElement.style.setProperty("--topbar-h", barHeight() + "px");
   setBarHeight();
   window.addEventListener("resize", setBarHeight);
 

@@ -124,6 +124,9 @@ body.no-furi rt { display: none; }
 .brand-text small { font-weight: 500; color: var(--muted); font-size: .72rem; }
 
 .tabs { display: flex; gap: 4px; margin: 0 auto; overflow-x: auto; scrollbar-width: none; }
+.tab-group { display: flex; flex: none; gap: 4px; }
+.tab-group + .tab-group { margin-left: 4px; padding-left: 8px; border-left: 1px solid var(--border); }
+.tab-cap, .tab-mark { display: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs button {
   border: 0;
@@ -164,15 +167,50 @@ body.no-furi rt { display: none; }
 }
 .account-btn:hover { border-color: var(--muted); }
 .theme-btn { white-space: nowrap; font-size: .85rem; }
-/* Below wide screens the top bar is tight: just the icon (and a little less room per tab). */
-@media (max-width: 1400px) {
+/* Narrow screens: the bar sits on top, with the tabs on a row of their own that scrolls sideways. */
+@media (max-width: 1023px) {
+  .topbar { flex-wrap: wrap; padding: 10px 16px; gap: 8px 12px; }
+  .tabs { order: 3; width: 100%; margin: 0; }
+  .switch { margin-left: auto; }
+  .account { margin-left: auto; }
+  .account:not(:empty) + .switch { margin-left: 0; }
   .theme-btn { padding: 4px 9px; }
   .theme-word { display: none; }
 }
-@media (min-width: 861px) and (max-width: 1400px) {
-  .brand-text small { display: none; }
-  .tabs { gap: 2px; }
-  .tabs button { padding: 8px 10px; }
+/* Wide screens: the same bar stands up as a sidebar, with the tabs in their groups and the
+   account and settings at the foot. barHeight() in app.js counts it as no height. */
+@media (min-width: 1024px) {
+  :root { --nav-w: 240px; }
+  body { padding-left: var(--nav-w); }
+  .topbar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--nav-w);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 16px 12px;
+    overflow-y: auto;
+    border-bottom: 0;
+    border-right: 1px solid var(--border);
+    backdrop-filter: none;
+    background: var(--bg);
+  }
+  .brand { padding: 0 6px 6px; }
+  .tabs { flex: 1 0 auto; flex-direction: column; gap: 14px; margin: 0; overflow: visible; }
+  .tab-group { flex-direction: column; gap: 2px; }
+  .tab-group + .tab-group { margin: 0; padding: 0; border: 0; }
+  .tab-cap { display: block; padding: 0 10px 4px; font-size: .75rem; font-weight: 600; color: var(--muted); }
+  .tab-mark { display: inline-block; width: 1.5em; font-weight: 500; color: var(--muted); }
+  .tabs button { width: 100%; padding: 6px 10px; border-radius: 10px; text-align: left; }
+  .tabs button.active { color: var(--text); background: var(--surface-2); }
+  .tabs button.active .tab-mark { color: var(--accent); }
+  .account, .switch { padding: 0 6px; }
+  .account { justify-content: space-between; border-top: 1px solid var(--border); padding-top: 12px; }
+  .account:empty + .switch { border-top: 1px solid var(--border); padding-top: 12px; }
+  .account-name { min-width: 0; }
+  .switch { justify-content: space-between; flex-direction: row-reverse; }
+  .theme-btn { align-self: stretch; }
 }
 
 /* ------------------------------------------------------------ Layout */
@@ -1248,11 +1286,6 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 
 /* ------------------------------------------------------------ Responsive */
 @media (max-width: 860px) {
-  .topbar { flex-wrap: wrap; padding: 10px 16px; gap: 8px 12px; }
-  .tabs { order: 3; width: 100%; margin: 0; }
-  .switch { margin-left: auto; }
-  .account { margin-left: auto; }
-  .account:not(:empty) + .switch { margin-left: 0; }
   .link-card, .link-card .lock-form { grid-template-columns: 1fr; }
   main { padding: 16px; }
   .grid2, .compare, .vgroups { grid-template-columns: 1fr; }
@@ -1753,3 +1786,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .sb-plain .sb-block { --c: var(--muted) !important; }
 .sb-plain .sb-block .chunk-role { display: none; }
 .sb-plain .sb-block .chunk-jp .p { background: none; color: inherit; padding: 0; }
+
+/* With the sidebar, toasts and the back button are centred over the page, not over the sidebar too. */
+@media (min-width: 1024px) {
+  #toasts, .cmp-back { left: calc(50% + var(--nav-w) / 2); }
+}
