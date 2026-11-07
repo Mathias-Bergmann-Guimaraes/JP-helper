@@ -1688,6 +1688,15 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .big-dots .lt-dot.now,
 .big-dots .lt-dot:is(.ok, .bad, .ans):has(+ .lt-dot:not(.ok, .bad, .ans, .now)) { border-radius: 0 999px 999px 0; }
 .big-rows-label { margin-top: 16px; }
+.big-kinds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 8px; }
+.big-kind { font-size: .8rem; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+.big-kind-scores { margin-top: 6px; }
+.big-kind.good { border-color: var(--good); }
+.big-kind.some { border-color: var(--c-range); }
+.big-kind.bad { border-color: var(--bad); }
+/* Find the mistake: each sentence with its English, and the wrong word marked once it's answered. */
+.q-opt-en { display: block; font-size: .8rem; line-height: 1.4; color: var(--muted); }
+.q-opt:disabled .spot-x, .q-feedback .spot-x { text-decoration: underline wavy var(--bad); text-underline-offset: 6px; }
 .big-result-notes { margin: 14px 0 0; }
 .big-exam { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 12px; cursor: pointer; }
 .big-exam input { flex: none; width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--accent); }

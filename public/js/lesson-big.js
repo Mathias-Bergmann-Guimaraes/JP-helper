@@ -1,6 +1,7 @@
 // Big tests on the Lessons tab: one every few lessons, and a final for each book. They're open from
-// the start, and passing one finishes every lesson it covers. Multiple choice comes first and a
-// written section last. Loaded after lesson-review.js and uses its helpers. Runs on the sentence
+// the start, and passing one finishes every lesson it covers. Multiple choice comes first, in a mix
+// of kinds borrowed from the rest of the site (see "Choosing the questions"), and a written section
+// last. Loaded after lesson-review.js and uses its helpers. Runs on the sentence
 // builder's helpers (lesson-build.js) for the written section.
 //
 // Saved per account (see server.js): bigTests, the best score of each test; bigWeak, the lessons
@@ -177,6 +178,7 @@ function drawBigIntro(b) {
         <div class="lt-seal${bigPassed(b) ? " pass" : ""}" lang="ja">${bigPassed(b) ? "合格" : b.final ? "卒業<br>試験" : "試験"}</div>
         <div>
           <p>${b.len} questions, spread evenly across ${b.final ? `all ${b.to - b.from + 1} lessons` : "these lessons"}. First ${b.len - written} multiple choice, mixed together so you have to work out which grammar applies, then ${written} to write yourself. Score <b>${bigPassMark(b)} / ${b.len}</b> or more to pass.</p>
+          <div class="big-kinds" aria-label="Kinds of question"><span class="small muted">A mix of</span>${bigKindsOf(b).map((k) => `<span class="big-kind">${BIG_KIND_NAMES[k]}</span>`).join("")}</div>
           <p class="small muted">${reward}</p>
           <p class="small muted">${best === undefined ? "Not taken yet." : `Best score so far: ${best} / ${b.len}.`}</p>
           ${run ? `<p class="small muted">In progress: ${run.results.length} of ${b.len} answered${run.exam ? ", in exam mode" : ""}.</p>` : `
@@ -205,13 +207,92 @@ function drawBigIntro(b) {
 /* ---------------------------------------------------------------- Choosing the questions */
 
 // A question is saved as an item: { n: lesson, p: point, k: kind, d: drill or b: build sentence },
-// so it can be drawn again after a reload.
-const MC_KINDS = ["gap", "gap", "gap", "meaning", "sentence"];
+// plus whatever else its kind needs to be drawn the same way again after a reload.
+//
+// Every point gets questions on the lesson's own sentences (DRILL_KINDS). Points whose grammar has a
+// quiz of its own somewhere else on the site (a verb form, a particle, an adjective, polite
+// language, a "which one do I use?" comparison, word order) sometimes get one of those instead.
+const DRILL_KINDS = ["gap", "gap", "meaning", "sentence", "spot"];
+const EXTRA_SHARE = 0.4; // how often a point with other kinds of question gets one of them
+
+// What each kind is called on the intro and in the result, in the order they're listed.
+const BIG_KIND_NAMES = {
+  gap: "Fill the gap", meaning: "What does it mean?", sentence: "Which sentence is right?", spot: "Find the mistake",
+  form: "Build the form", group: "Which verb group?", particle: "Particles", adj: "Adjectives",
+  compare: "Which one fits?", order: "Word order", keigo: "Polite language", build: "Written",
+};
+// Made up fresh each time they're drawn, so a missed one keeps the review line it was saved with.
+const BIG_FRESH = new Set(["form", "group", "adj", "keigo"]);
+
+const PARTICLE_OF = { wa: "は", ga: "が", wo: "を", ni: "に", he: "へ", de: "で", to: "と", no: "の", mo: "も", kara: "から" };
+// The last lesson each comparison draws on: it's only asked in a test that reaches it.
+const COMPARE_READY = { if: 35, seems: 47, purpose: 42, state: 30, favours: 24, keigo: 50 };
+
+function compareOf(link) {
+  if (!link || typeof COMPARISONS === "undefined") return null;
+  return COMPARISONS.find((c) => (link.tab === "patterns" && c.patterns.includes(link.id))
+    || (link.keigo && c.id === "keigo")
+    || (link.tab === "verbs" && link.form === "ba" && c.id === "if")) || null;
+}
+
+// The other kinds of question a point can have, in a test that goes up to lesson `upTo`. Verb groups
+// come in with the て-form (lesson 14), and adjectives once their past forms are known (lesson 12).
+function extraKinds(l, p, upTo) {
+  const k = l.points[p].link;
+  if (!k) return [];
+  const out = [];
+  if (isFormLink(k)) out.push("form");
+  if (k.tab === "verbs" && k.form && l.n >= 14) out.push("group");
+  if (k.tab === "particles" && PARTICLE_QUIZ.some((q) => q.a === PARTICLE_OF[k.id])) out.push("particle");
+  if (k.tab === "adjectives" && l.n >= 12) out.push("adj");
+  if (k.keigo) out.push("keigo");
+  if (k.tab === "structure" && typeof ORDER_GOALS !== "undefined") out.push("order");
+  const c = compareOf(k);
+  if (c && upTo >= COMPARE_READY[c.id]) out.push("compare");
+  return out;
+}
+
+// What else an item of kind `k` needs saved, or null when every question of that kind is already in
+// the test. `used` holds the ones taken so far.
+function extraItem(k, link, used) {
+  const take = (prefix, count, fits = () => true) => {
+    const free = Array.from({ length: count }, (_, i) => i).filter((i) => fits(i) && !used.has(prefix + i));
+    if (!free.length) return null;
+    const i = pick(free);
+    used.add(prefix + i);
+    return i;
+  };
+  if (k === "particle") {
+    const q = take("pq", PARTICLE_QUIZ.length, (i) => PARTICLE_QUIZ[i].a === PARTICLE_OF[link.id]);
+    return q === null ? null : { q };
+  }
+  if (k === "compare") {
+    const c = compareOf(link);
+    const q = take(`cmp-${c.id}-`, c.quiz.length);
+    return q === null ? null : { c: c.id, q };
+  }
+  if (k === "order") {
+    const g = take("wo", ORDER_GOALS.length, (i) => orderWrong(ORDER_GOALS[i]).length > 0);
+    return g === null ? null : { g };
+  }
+  return {};
+}
+
+function bigItem(l, p, j, upTo, used) {
+  const item = { n: l.n, p, k: pick(DRILL_KINDS), d: j };
+  const extras = extraKinds(l, p, upTo);
+  if (!extras.length || Math.random() >= EXTRA_SHARE) return item;
+  for (const k of shuffle(extras)) {
+    const more = extraItem(k, l.points[p].link, used);
+    if (more) return { ...item, ...more, k };
+  }
+  return item;
+}
 
 // `count` multiple choice items from one lesson, going through its points in a random order. The
 // sentence being written (if any) isn't asked as well, and its point comes last, so the two parts
 // between them still touch every point when there's room.
-function lessonItems(l, count, write) {
+function lessonItems(l, count, write, upTo = l.n, used = new Set()) {
   const drills = lessonDrills(l);
   const skipEn = write ? write.en : null;
   const points = shuffle(l.points.map((_, p) => p)).sort((a, c) => (write ? (a === write.i) - (c === write.i) : 0))
@@ -221,24 +302,186 @@ function lessonItems(l, count, write) {
     const { p, left } = points[k % points.length];
     const next = left.pop();
     if (!next) continue;
-    const kind = isFormLink(l.points[p].link) && Math.random() < 0.25 ? "form" : pick(MC_KINDS);
-    items.push({ n: l.n, p, k: kind, d: next.j });
+    items.push(bigItem(l, p, next.j, upTo, used));
+  }
+  // "Find the mistake" shows three right sentences with the wrong one. They come from sentences
+  // nothing else in the test asks about, so they can't give another answer away.
+  const taken = new Set(items.map((x) => x.d));
+  const spare = shuffle(drills.map((_, j) => j).filter((j) => !taken.has(j) && drills[j].en !== skipEn));
+  for (const x of items) {
+    if (x.k !== "spot") continue;
+    if (spare.length < 3) { x.k = "gap"; continue; }
+    x.o = spare.splice(0, 3);
+    x.w = Math.floor(Math.random() * drills[x.d].wrong.length);
   }
   return items;
+}
+
+// Shuffled, then nudged so the same kind of question rarely comes twice in a row.
+function spreadKinds(items) {
+  const out = shuffle(items.slice());
+  for (let i = 1; i < out.length; i++) {
+    if (out[i].k !== out[i - 1].k) continue;
+    const j = out.findIndex((x, m) => m > i && x.k !== out[i - 1].k && (!out[i + 1] || x.k !== out[i + 1].k));
+    if (j > 0) [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 // Each lesson gets the same number of questions. The written ones each come from a different lesson.
 function buildBigItems(b) {
   const lessons = bigLessons(b);
   const each = b.len / lessons.length;
+  const used = new Set();
   const writing = new Map(shuffle(lessons.slice()).slice(0, bigWrittenCount(b)).map((l) => {
     const builds = lessonBuilds(l);
     const at = Math.floor(Math.random() * builds.length);
     return [l.n, { at, en: builds[at].en, i: builds[at].i }];
   }));
-  const choice = lessons.flatMap((l) => lessonItems(l, each - (writing.has(l.n) ? 1 : 0), writing.get(l.n)));
+  const choice = lessons.flatMap((l) => lessonItems(l, each - (writing.has(l.n) ? 1 : 0), writing.get(l.n), b.to, used));
   const written = [...writing].map(([n, w]) => ({ n, p: w.i, k: "build", b: w.at }));
-  return [...shuffle(choice), ...shuffle(written)];
+  return [...spreadKinds(choice), ...shuffle(written)];
+}
+
+// The kinds of question a test can draw from, for its intro.
+function bigKindsOf(b) {
+  const kinds = new Set(DRILL_KINDS);
+  for (const l of bigLessons(b)) l.points.forEach((_, p) => extraKinds(l, p, b.to).forEach((k) => kinds.add(k)));
+  if (bigWrittenCount(b)) kinds.add("build");
+  return Object.keys(BIG_KIND_NAMES).filter((k) => kinds.has(k));
+}
+
+/* ---------------------------------------------------------------- The other kinds of question */
+
+const noHint = (html) => html.replace(/<details class="q-hint">.*?<\/details>/s, "").replace(/<div class="small muted">.*?<\/div>/s, "");
+
+// A review line for a question made up on the spot: its prompt, then the right answer.
+function freshReview(q) {
+  const right = q.options.find((o) => o.correct);
+  return `<span class="lt-form">${noHint(q.prompt)}</span>
+    <span lang="${right.lang || "ja"}">→ <b>${right.html}</b></span>`;
+}
+
+// A sentence with one gap ({_}) and a few words to fill it: the particle quiz and the comparisons.
+function blankQ(q, { kind, color, link, showEn, feedback }) {
+  const [before, after] = q.s.split("{_}");
+  return {
+    kind,
+    link,
+    prompt: `<div class="q-sentence" lang="ja">${ruby(before)}<span class="blank">？</span>${ruby(after)}</div>
+      ${showEn ? `<div class="q-en">${q.en}</div>` : hintEn(q.en)}`,
+    options: shuffle(q.opts.slice()).map((o) => ({ html: ruby(o), correct: o === q.a })),
+    reveal: (box) => {
+      const b = $(".blank", box);
+      b.innerHTML = ruby(q.a);
+      b.classList.add("filled");
+      b.style.setProperty("--c", color);
+    },
+    feedback,
+    review: `<span lang="ja" style="--c:${color}">${ruby(before)}<span class="hl">${ruby(q.a)}</span>${ruby(after)}</span><span class="muted">${q.en}</span>`,
+  };
+}
+
+function particleQ(q, link) {
+  link = link || { tab: "particles" };
+  const color = ROLES[PARTICLE_ROLE[q.a]].color;
+  const p = PARTICLES.find((x) => x.p.includes(q.a));
+  return blankQ(q, {
+    kind: "Pick the particle", color, link,
+    feedback: () => `<div class="fb-grid" style="--c:${color}">
+        ${p ? particleSVG(p.id) : ""}
+        <div><p>${q.why}</p>${p ? `<p class="small muted">Picture: ${p.caption.toLowerCase()}.</p>` : ""}
+        <button class="lp-link" data-see>See it → ${linkLabel(link)}</button></div>
+      </div>`,
+  });
+}
+
+function compareQ(c, q, link) {
+  link = link || { tab: "patterns" };
+  return blankQ(q, {
+    kind: "Which one fits?", color: "var(--accent)", link, showEn: true,
+    feedback: () => `<p>${q.why}</p>
+      <div class="small muted"><b>Rule of thumb</b> ${c.rule}</div>
+      <button class="lp-link" data-see>See it → ${linkLabel(link)}</button>`,
+  });
+}
+
+// Four sentences with their English, and one of them has the wrong word in its gap.
+function spotQ(d, w, fillers) {
+  const c = ROLES[d.point.role].color;
+  const bad = d.wrong[w];
+  const line = (x, word, mark) => `${ruby(x.before)}${mark ? `<span class="spot-x">${ruby(word)}</span>` : ruby(word)}${ruby(x.after)}<span class="q-opt-en" lang="en">${x.en}</span>`;
+  return {
+    kind: "Find the mistake",
+    link: d.point.link,
+    wide: true,
+    prompt: `<div class="q-en-big">One of these has a mistake. Which one?</div>
+      <div class="small muted">The English under each one is what it's meant to say.</div>`,
+    options: shuffle([
+      { html: line(d, bad, true), correct: true },
+      ...fillers.map((f) => ({ html: line(f, f.answer), correct: false })),
+    ]),
+    reveal: () => {},
+    feedback: () => `<p class="small"><span lang="ja" class="spot-x">${ruby(bad)}</span> doesn't fit there. It should be:</p>${drillFeedback(d)}`,
+    review: `<span lang="ja" style="--c:${c}">${drillSentence(d)}</span><span class="muted">${d.en} (not ${ruby(bad)})</span>`,
+  };
+}
+
+// Word order, as a choice: the Sentence explorer's sentences, in an order that's right for the goal
+// and in orders that aren't (as word-order.js judges them). The verb stays at the end. The wrong ones
+// are only orders the explorer lists, since an order it doesn't list may still be fine Japanese.
+const allOrders = (a) => (a.length <= 1 ? [a] : a.flatMap((x, i) => allOrders([...a.slice(0, i), ...a.slice(i + 1)]).map((r) => [x, ...r])));
+
+const orderText = (s, order) => `${order.filter((i) => !s.chunks[i].implied).map((i) => rich(s.chunks[i].w + s.chunks[i].p)).join(" ")}。`;
+
+// Up to 3 listed orders that miss the goal, none reading the same as an order that reaches it.
+function orderWrong(goal) {
+  const s = SENTENCES[goal.si];
+  const verb = s.chunks.length - 1;
+  const every = allOrders(Array.from({ length: verb }, (_, i) => i)).map((o) => [...o, verb]);
+  // Two orders can read the same when they only move a block that isn't said, like (私は).
+  const seen = new Set(every.filter((o) => judgeOrder(goal, o).ok).map((o) => orderText(s, o)));
+  const listed = (s.orders || []).map((o) => o.order);
+  const wrong = [];
+  for (const o of goal.kind === "emph" ? [s.chunks.map((_, i) => i), ...shuffle(listed)] : shuffle(listed)) {
+    if (wrong.length === 3) break;
+    if (judgeOrder(goal, o).ok || seen.has(orderText(s, o))) continue;
+    seen.add(orderText(s, o));
+    wrong.push(o);
+  }
+  return wrong;
+}
+
+function orderQ(goal) {
+  const s = SENTENCES[goal.si];
+  const text = (order) => orderText(s, order);
+  const right = goalAnswer(goal);
+  const wrong = orderWrong(goal);
+  const why = (order) => {
+    const r = judgeOrder(goal, order);
+    const v = VERDICTS[r.pill];
+    return `<div class="sv-why ${r.ok ? v.cls : "bad"}"><b>${v.label}</b> ${rich(r.why)}</div>`;
+  };
+  return {
+    kind: "Word order",
+    link: { tab: "structure" },
+    wide: true,
+    prompt: `<div class="q-en-big">“${s.en}”</div>
+      <div class="small muted">${goal.kind === "natural" ? "Which order sounds natural?" : `Which order puts the emphasis on <b>${goal.q}</b>?`}</div>`,
+    options: shuffle([{ order: right, correct: true }, ...wrong.map((order) => ({ order, correct: false }))])
+      .map((o) => ({ ...o, html: text(o.order) })),
+    reveal: () => {},
+    feedback: (o) => `${o.correct ? "" : why(o.order)}${why(right)}
+      <button class="lp-link" data-see>See it → ${linkLabel({ tab: "structure" })}</button>`,
+    review: `<span lang="ja">${text(right)}</span><span class="muted">${s.en}${goal.kind === "emph" ? `, stressing ${goal.q}` : ""}</span>`,
+  };
+}
+
+// A question from another page's quiz, with the name and link it has in a test.
+function freshQ(q, kind, link) {
+  const out = { ...q, kind: q.kind || kind, link: q.link || link };
+  out.review = freshReview(out);
+  return out;
 }
 
 function writtenQ(l, b) {
@@ -259,10 +502,25 @@ function bigQuestion(item) {
     return b ? writtenQ(l, b) : null;
   }
   const link = l.points[item.p].link;
-  if (item.k === "form") return isFormLink(link) ? formQ(link) : null;
+  switch (item.k) {
+    case "form": return isFormLink(link) ? formQ(link) : null;
+    case "group": return freshQ(makeGroupQ(), "Which group is it in?", { tab: "verbs" });
+    case "adj": return freshQ(makeAdjectiveQ(), "Change the adjective", link);
+    case "keigo": return freshQ(makeKeigoQ(), "Pick the polite word", link);
+    case "particle": return PARTICLE_QUIZ[item.q] ? particleQ(PARTICLE_QUIZ[item.q], link) : null;
+    case "compare": {
+      const c = typeof COMPARISONS !== "undefined" && COMPARISONS.find((x) => x.id === item.c);
+      return c && c.quiz[item.q] ? compareQ(c, c.quiz[item.q], link) : null;
+    }
+    case "order": return typeof ORDER_GOALS !== "undefined" && ORDER_GOALS[item.g] ? orderQ(ORDER_GOALS[item.g]) : null;
+  }
   const all = lessonDrills(l);
   const d = all[item.d];
   if (!d) return null;
+  if (item.k === "spot") {
+    const fillers = (item.o || []).map((j) => all[j]);
+    return fillers.length === 3 && fillers.every(Boolean) && d.wrong[item.w] ? spotQ(d, item.w, fillers) : null;
+  }
   return item.k === "meaning" ? meaningQ(d, all) : item.k === "sentence" ? sentenceQ(d) : gapQ(d);
 }
 
@@ -334,7 +592,7 @@ function runBig(b, t) {
   const record = (result, btn, typed) => {
     t.results[t.i] = result;
     if (typed) t.typed[t.i] = typed;
-    if (result === false && t.items[t.i].k === "form") t.rv[t.i] = q.review;
+    if (result === false && BIG_FRESH.has(t.items[t.i].k)) t.rv[t.i] = q.review;
     saveBigRuns();
     if (result === true && !t.exam) addXP(XP.test, btn);
     $(".lt-dots", box).innerHTML = bigBar(t);
@@ -689,8 +947,10 @@ function finishBig(b, t) {
   const after = finalAfter(b);
   const next = LESSONS.find((l) => l.n === b.to + 1);
   const finished = newly.length ? ` That finishes ${plural(newly.length, "more lesson")}, and their grammar now comes back in your daily review.` : "";
-  const writtenAt = t.items.map((x, j) => (x.k === "build" ? j : -1)).filter((j) => j >= 0);
-  const writtenRight = writtenAt.filter((j) => t.results[j] === true).length;
+  const byKind = Object.keys(BIG_KIND_NAMES).map((k) => {
+    const mine = t.items.map((x, j) => (x.k === k ? j : -1)).filter((j) => j >= 0);
+    return { k, of: mine.length, right: mine.filter((j) => t.results[j] === true).length };
+  }).filter((x) => x.of);
   const box = $("#bigTest");
   box.innerHTML = `
     <div class="lt-result ${passed ? "pass" : "fail"}">
@@ -703,7 +963,9 @@ function finishBig(b, t) {
           : `You need ${mark} to pass, so ${plural(mark - score, "more right answer")} next time. The lessons below show where to practise, and the questions change every time.`}</p>
       </div>
     </div>
-    <p class="small muted big-result-notes">Written section: ${writtenRight} / ${writtenAt.length}.${missedBack ? ` ${plural(missedBack, "grammar point")} you missed ${missedBack === 1 ? "comes" : "come"} back in your review tomorrow.` : ""}</p>
+    ${missedBack ? `<p class="small muted big-result-notes">${plural(missedBack, "grammar point")} you missed ${missedBack === 1 ? "comes" : "come"} back in your review tomorrow.</p>` : ""}
+    <div class="small muted big-rows-label">By kind of question</div>
+    <div class="big-kinds big-kind-scores">${byKind.map((x) => `<span class="big-kind ${x.right === x.of ? "good" : x.right / x.of < BIG_PASS ? "bad" : "some"}">${BIG_KIND_NAMES[x.k]} <b>${x.right} / ${x.of}</b></span>`).join("")}</div>
     <div class="small muted big-rows-label">By lesson</div>
     <div class="rv-rows${rows.length > 10 ? " big-rows-many" : ""}">${rows.map((r) => r.html).join("")}</div>
     ${missedHTML(t)}
