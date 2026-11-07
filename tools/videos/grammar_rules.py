@@ -15,9 +15,18 @@ checks each rule against its lesson's example sentence.
 """
 import re
 
-import fugashi
+_tagger = None
 
-TAGGER = fugashi.Tagger()
+
+def tagger():
+    """MeCab through fugashi, loaded on first use. Steps that never spot grammar, like
+    analyse.py --transcripts, then run without it, on a server where it can't load."""
+    global _tagger
+    if _tagger is None:
+        import fugashi
+
+        _tagger = fugashi.Tagger()
+    return _tagger
 
 # Set phrases are learned as words, so they shouldn't count as the grammar inside them.
 SET_PHRASES = re.compile(
@@ -327,5 +336,5 @@ def find_points(sentence):
     text = clean(sentence)
     if not text:
         return []
-    toks = [Token(w) for w in TAGGER(text)]
+    toks = [Token(w) for w in tagger()(text)]
     return [k for k, alts in COMPILED.items() if any(all(p(text, toks) for p in alt) for alt in alts)]
