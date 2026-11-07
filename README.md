@@ -67,7 +67,8 @@ sentences), and which grammar points it uses, split into studied and not reached
 opens its lesson, and its times jump the player to where it's used. Grammar is spotted by rules in
 `tools/videos/grammar_rules.py`, reading the captions people wrote for the video, so a few points
 may be missed or wrong. 7 of the 186 points can't be told apart from others this way, and vocabulary
-isn't counted. To refresh the list (needs Python, and `public/js/videos-data.js` is the only output):
+isn't counted. **To add videos, podcasts or songs, follow the step-by-step guide in
+[`tools/videos/README.md`](tools/videos/README.md).** In short, to refresh the list (needs Python):
 
 ```
 cd tools/videos
