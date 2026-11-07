@@ -374,12 +374,18 @@ def transcripts(links_only=False):
     for i, v in enumerate(yt):
         path = CACHE / f"{v['id']}.json"
         cached = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        if "captions" not in cached:
+        # Every listed video had captions when it was picked, so missing ones are asked for again: a
+        # refusal from YouTube that isn't reported as a block can still have saved them as None.
+        if not cached.get("captions"):
             if api is None:
                 from youtube_transcript_api import YouTubeTranscriptApi
                 api = YouTubeTranscriptApi()
             cached = {**cached, "id": v["id"], "title": v["title"], "channel": v["channel"], "seconds": v["seconds"]}
-            download_captions(api, cached, path, i)
+            try:
+                download_captions(api, cached, path, i)
+            except SystemExit:
+                print(f"saved {saved} video transcripts in {TRANSCRIPTS} before the block")
+                raise
         if not cached.get("captions"):
             print("NO CAPTIONS", v["id"], v["title"])
             continue

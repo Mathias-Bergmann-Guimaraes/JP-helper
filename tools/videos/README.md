@@ -50,7 +50,9 @@ python analyse.py --transcripts
   others were skipped. It also writes each podcast episode's transcript address.
 - `--transcripts` saves every listed video's captions in `data/transcripts/` for its transcript
   panel. It reuses what `--gather` saved and downloads only missing captions. Always run it after
-  `--build`, since it works from the list `--build` wrote.
+  `--build`, since it works from the list `--build` wrote. YouTube often blocks downloads from
+  cloud servers after a few dozen videos. Each run keeps what it saved and carries on from there,
+  so run it again later, or run it on your own computer and copy `data/transcripts/` up.
 
 `python analyse.py --test` checks the grammar rules against the lessons' own examples. It's worth
 running after changing `grammar_rules.py`.
