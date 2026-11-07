@@ -710,13 +710,17 @@ function renderVerbs() {
           <div class="fnode end"><span class="fres" style="--gc:var(--g-ichi)">Ichidan</span> — almost always!</div><div></div>
         </div>
         <p class="small muted" lang="ja">Sneaky godan verbs that look ichidan: ${["帰[かえ]る", "入[はい]る", "走[はし]る", "知[し]る", "切[き]る", "要[い]る"].map(ruby).join("、")}</p>
+        <button class="lp-link vq-go" data-vq="group">Test yourself: which group? ↓</button>
       </div>
     </div>
 
-    <div class="card lquiz pr-card vquiz">
+    <div class="card lquiz pr-card vquiz" id="vqCard">
       <div class="rl-head"><span class="rl-kicker">⚡ Test yourself</span></div>
       <div class="pr-controls">
-        <label class="ai-focus small">Focus on <select id="vqFocus">
+        <div class="seg pr-seg" id="vqMode">
+          ${Object.entries(VERB_QUIZ).map(([id, k]) => `<button data-m="${id}">${k.name}</button>`).join("")}
+        </div>
+        <label class="ai-focus small" id="vqFocusBox">Focus on <select id="vqFocus">
           <option value="">Every form</option>
           ${FORMS.filter((f) => f.id !== "dict").map((f) => `<option value="${f.id}">${f.label}</option>`).join("")}
         </select></label>
@@ -760,25 +764,106 @@ function renderVerbs() {
           </tr>`).join("")}
         </table>
       </div>
+      <button class="lp-link vq-go" data-vq="keigo">Practise these ↑</button>
     </div>`;
 
   $$("#verbs [data-v]").forEach((b) => (b.onclick = () => { track("explore.verbs"); verbIdx = +b.dataset.v; updateVerb(); }));
   $$("#verbs [data-f]").forEach((b) => (b.onclick = () => { track("explore.verbs"); verbForm = b.dataset.f; updateVerb(); }));
-  $("#vqFocus").value = verbQuiz.focus;
-  $("#vqFocus").onchange = (e) => { verbQuiz.focus = e.target.value; nextVerbQuizQ(); };
+  $$("#vqMode button").forEach((b) => (b.onclick = () => setVerbQuiz(b.dataset.m)));
+  $$("#verbs [data-vq]").forEach((b) => (b.onclick = () => { setVerbQuiz(b.dataset.vq); scrollBelowBar($("#vqCard")); }));
+  $("#vqFocus").onchange = (e) => setVerbQuiz("forms", e.target.value);
   $("#vqNext").onclick = nextVerbQuizQ;
   updateVerb();
+  setVerbQuiz(verbQuiz.mode, verbQuiz.focus);
+}
+
+// "Test yourself" on the Verbs page: verb forms (the same questions as the Practice tab's quick
+// quiz), which group a verb is in, and the special polite-language words.
+const verbQuiz = { mode: "forms", focus: "", score: 0, total: 0, streak: 0, groupDeck: [], lastKeigo: null };
+
+const VERB_QUIZ = {
+  forms: { name: "Verb forms", track: "quiz.verbs", make: () => ({ ...makeVerbQ(verbQuiz.focus || undefined), kind: "Build the verb form" }) },
+  group: { name: "Which group?", track: "quiz.verbgroups", make: () => makeGroupQ() },
+  keigo: { name: "Polite language", track: "quiz.keigo", make: () => makeKeigoQ() },
+};
+
+// focus: a form to stick to, only for the verb forms.
+function setVerbQuiz(mode, focus = "") {
+  Object.assign(verbQuiz, { mode, focus: mode === "forms" ? focus : "" });
+  $$("#vqMode button").forEach((b) => b.classList.toggle("active", b.dataset.m === mode));
+  $("#vqFocusBox").hidden = mode !== "forms";
+  $("#vqFocus").value = verbQuiz.focus;
   nextVerbQuizQ();
 }
 
-// The verb-form questions from the Practice tab's quick quiz, right under the explainer.
-const verbQuiz = { focus: "", score: 0, total: 0, streak: 0 };
+function makeGroupQ() {
+  const vq = verbQuiz;
+  // From a shuffled deck, so every verb comes up once before any repeats.
+  if (!vq.groupDeck.length) vq.groupDeck = shuffle(GROUP_QUIZ.slice());
+  const v = vq.groupDeck.pop();
+  const g = GROUPS[v.group];
+  const nai = conjugate(v, "nai");
+  return {
+    kind: "Which group is it in?",
+    wide: true,
+    prompt: `<div class="q-sentence" lang="ja">${ruby(v.w)}</div>${hintEn(`“to ${v.en}”`)}`,
+    options: Object.entries(GROUPS).map(([id, info]) => ({
+      html: `<span class="gbadge" style="--gc:${info.color}">${info.label}</span> <span class="small muted">${info.alt}</span>`,
+      lang: "en",
+      correct: id === v.group,
+    })),
+    reveal: () => {},
+    feedback: () => `<div class="fb-verb" style="--gc:${g.color}">
+        <div class="small muted">Its ない-form</div>
+        <div class="conj-word" lang="ja">${partsHTML(nai.parts)}</div>
+        <p><span class="gbadge">${g.label}</span> ${groupWhy(v)}</p>
+        ${v.note ? `<div class="note">${v.note}</div>` : ""}
+      </div>`,
+  };
+}
+
+// A verb from the polite-language table, and its respectful or humble word. The usual mistake is
+// mixing the two up, so the other one is always among the wrong answers when there is one.
+function makeKeigoQ() {
+  const vq = verbQuiz;
+  const asks = KEIGO.flatMap((k) => ["up", "down"].filter((d) => k[d] !== "—").map((d) => [k, d]))
+    .filter(([k, d]) => `${k.w}${d}` !== vq.lastKeigo);
+  const [k, dir] = pick(asks);
+  vq.lastKeigo = `${k.w}${dir}`;
+  const up = dir === "up";
+  const right = k[dir];
+  const other = k[up ? "down" : "up"];
+  const words = KEIGO.flatMap((x) => [x.up, x.down]).filter((w) => w !== "—" && w !== right);
+  const wrong = pickWrong(right, other !== "—" ? [other] : [], words).map((w) => w.text);
+  return {
+    kind: "Pick the polite word",
+    prompt: `<div class="q-sentence" lang="ja">${ruby(k.w)} <span class="arrow">→</span> <span class="q-form">${up ? "Respectful" : "Humble"}</span></div>
+      <div class="small muted">${up ? "Someone you look up to does it." : "You do it, for someone you look up to."}</div>
+      ${hintEn(`“${k.en}”`)}`,
+    options: shuffle([right, ...wrong]).map((o) => ({ html: ruby(o), correct: o === right })),
+    reveal: () => {},
+    feedback: () => `<div class="fb-keigo">
+        <table class="ftable keigo-table">
+          <tr><th>Normal</th><th>Respectful</th><th>Humble</th></tr>
+          <tr>
+            <td lang="ja">${ruby(k.w)} <span class="muted small" lang="en">${k.en}</span></td>
+            <td lang="ja"${up ? ' class="on"' : ""}>${ruby(k.up)}</td>
+            <td lang="ja"${up ? "" : ' class="on"'}>${ruby(k.down)}</td>
+          </tr>
+        </table>
+        <p class="small">${up
+          ? "<b>Respectful</b> (尊敬語) lifts up the other person when they're the one doing it."
+          : "<b>Humble</b> (謙譲語) lowers you when you're the one doing it."}</p>
+      </div>`,
+  };
+}
 
 function nextVerbQuizQ() {
   const vq = verbQuiz;
+  const type = VERB_QUIZ[vq.mode];
   $("#vqNext").hidden = true;
-  askIn($("#vqBox"), { ...makeVerbQ(vq.focus || undefined), kind: "Build the verb form" }, (ok, b) => {
-    track("quiz.verbs");
+  askIn($("#vqBox"), type.make(), (ok, b) => {
+    track(type.track);
     vq.total++;
     if (ok) { vq.score++; vq.streak++; addXP(XP.practice, b); } else vq.streak = 0;
     $("#vqScore").textContent = `${vq.score} / ${vq.total}`;
@@ -810,7 +895,10 @@ function updateVerb() {
     <p class="conj-explain">${c.explain}</p>
     ${v.note ? `<div class="note">${v.note}</div>` : ""}
     ${f.note ? `<div class="note" lang="en">${f.note}</div>` : ""}
-    <div class="conj-viz">${vizHTML(c.viz, v)}</div>`;
+    <div class="conj-viz">${vizHTML(c.viz, v)}</div>
+    ${verbForm === "dict" ? "" : `<button class="lp-link" id="vqThisForm">Test yourself on the ${f.label} ↓</button>`}`;
+  const test = $("#vqThisForm");
+  if (test) test.onclick = () => { setVerbQuiz("forms", verbForm); scrollBelowBar($("#vqCard")); };
 
   $("#formTable").innerHTML = `
     <h2>All forms of <span lang="ja">${ruby(v.w)}</span></h2>
@@ -854,7 +942,7 @@ function vizHTML(z, v) {
   if (z.type === "te") {
     const ta = verbForm === "ta";
     const examples = (g) => VERBS
-      .filter((x) => x.group === "godan" && !x.teException && g.ends.includes(x.w.slice(-1)))
+      .filter((x) => x.group === "godan" && !x.teException && !x.extra && g.ends.includes(x.w.slice(-1)))
       .map((x) => `${ruby(x.w)} → ${ruby(conjugate(x, ta ? "ta" : "te").result)}`).join("　");
     return `
       <div class="viz-title">The ${ta ? "た" : "て"}-form sound-change chart</div>
@@ -1032,7 +1120,7 @@ function renderPatterns() {
         ${Object.entries(GROUPS).map(([g, info]) => `
           <div class="chips pat-vgroup" style="--gc:${info.color}">
             <span class="pat-vgroup-name">${info.label}</span>
-            ${VERBS.map((v, i) => v.group === g ? `<button class="chip" data-pv="${i}" lang="ja">${ruby(v.w)}</button>` : "").join("")}
+            ${VERBS.map((v, i) => v.group === g && !v.extra ? `<button class="chip" data-pv="${i}" lang="ja">${ruby(v.w)}</button>` : "").join("")}
           </div>`).join("")}
       </div>
     </div>
@@ -1269,7 +1357,7 @@ function pickWrong(correct, likely, backup) {
 // or build the right form with the wrong group's rules.
 function makePatternQ(patId) {
   const p = patId ? VERB_PATTERNS.find((x) => x.id === patId) : pick(VERB_PATTERNS);
-  const v = pick(VERBS.filter((x) => !(p.not || []).includes(x.w)));
+  const v = pick(VERBS.filter((x) => !x.extra && !(p.not || []).includes(x.w)));
   const g = GROUPS[v.group];
   const other = v.group === "godan" ? "ichidan" : "godan";
   const build = (base, group) => partsText(patternBase(v, base, group)) + p.ending;
