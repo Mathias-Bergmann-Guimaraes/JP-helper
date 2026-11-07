@@ -650,6 +650,7 @@ const USAGE_GROUPS = {
   "Reference pages": {
     "explore.sentences": "Example sentences browsed", "explore.particles": "Particles opened", "explore.verbs": "Verbs or forms switched",
     "explore.adjectives": "Adjectives switched", "explore.patterns": "Pattern verbs switched",
+    "quiz.verbgroups": "Verb group questions answered", "quiz.keigo": "Polite language questions answered",
   },
   Settings: { "setting.furigana": "Furigana switched", "setting.theme": "Theme switched" },
 };

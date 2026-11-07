@@ -1750,6 +1750,12 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .pr-seg button { padding: 5px 14px; color: inherit; }
 .pr-quiz .scorebar, .vquiz .scorebar { margin-top: 14px; }
 .vquiz { margin-bottom: 20px; }
+#vqFocusBox[hidden] { display: none; }
+.vq-go, #vqThisForm { --c: var(--accent); }
+#vqThisForm { display: block; margin: 14px auto 0; }
+.fb-keigo .keigo-table { width: 100%; margin-bottom: 8px; }
+.fb-keigo td.on { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); font-weight: 600; }
+.fb-keigo p { margin: 0; }
 .pr-quiz[hidden], #quizFocusBox[hidden] { display: none; }
 .pr-run { margin-bottom: 18px; }
 .pr-run.card { padding-top: 16px; }
