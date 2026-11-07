@@ -1748,7 +1748,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .pr-controls .ai-focus select { max-width: 240px; }
 .pr-seg { flex-wrap: wrap; border-radius: 16px; }
 .pr-seg button { padding: 5px 14px; color: inherit; }
-.pr-quiz .scorebar { margin-top: 14px; }
+.pr-quiz .scorebar, .vquiz .scorebar { margin-top: 14px; }
+.vquiz { margin-bottom: 20px; }
 .pr-quiz[hidden], #quizFocusBox[hidden] { display: none; }
 .pr-run { margin-bottom: 18px; }
 .pr-run.card { padding-top: 16px; }

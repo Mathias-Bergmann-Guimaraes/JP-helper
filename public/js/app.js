@@ -713,6 +713,22 @@ function renderVerbs() {
       </div>
     </div>
 
+    <div class="card lquiz pr-card vquiz">
+      <div class="rl-head"><span class="rl-kicker">⚡ Test yourself</span></div>
+      <div class="pr-controls">
+        <label class="ai-focus small">Focus on <select id="vqFocus">
+          <option value="">Every form</option>
+          ${FORMS.filter((f) => f.id !== "dict").map((f) => `<option value="${f.id}">${f.label}</option>`).join("")}
+        </select></label>
+      </div>
+      <div class="scorebar">
+        <span>Score <b id="vqScore">0 / 0</b></span>
+        <span>Streak <b id="vqStreak">0</b></span>
+      </div>
+      <div id="vqBox"></div>
+      <div class="q-actions"><button class="btn primary" id="vqNext" hidden>Next question →</button></div>
+    </div>
+
     <div class="card" id="keigoCard">
       <h2>Polite language: respectful and humble</h2>
       <p>Who's doing the action decides which one you use. <b>Respectful</b> (尊敬語) lifts up someone else who's doing it.
@@ -748,7 +764,28 @@ function renderVerbs() {
 
   $$("#verbs [data-v]").forEach((b) => (b.onclick = () => { track("explore.verbs"); verbIdx = +b.dataset.v; updateVerb(); }));
   $$("#verbs [data-f]").forEach((b) => (b.onclick = () => { track("explore.verbs"); verbForm = b.dataset.f; updateVerb(); }));
+  $("#vqFocus").value = verbQuiz.focus;
+  $("#vqFocus").onchange = (e) => { verbQuiz.focus = e.target.value; nextVerbQuizQ(); };
+  $("#vqNext").onclick = nextVerbQuizQ;
   updateVerb();
+  nextVerbQuizQ();
+}
+
+// The verb-form questions from the Practice tab's quick quiz, right under the explainer.
+const verbQuiz = { focus: "", score: 0, total: 0, streak: 0 };
+
+function nextVerbQuizQ() {
+  const vq = verbQuiz;
+  $("#vqNext").hidden = true;
+  askIn($("#vqBox"), { ...makeVerbQ(vq.focus || undefined), kind: "Build the verb form" }, (ok, b) => {
+    track("quiz.verbs");
+    vq.total++;
+    if (ok) { vq.score++; vq.streak++; addXP(XP.practice, b); } else vq.streak = 0;
+    $("#vqScore").textContent = `${vq.score} / ${vq.total}`;
+    $("#vqStreak").textContent = vq.streak;
+    $("#vqNext").hidden = false;
+    $("#vqNext").focus({ preventScroll: true });
+  });
 }
 
 function updateVerb() {

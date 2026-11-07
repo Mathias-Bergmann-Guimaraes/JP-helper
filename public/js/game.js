@@ -181,10 +181,13 @@ const starsHTML = (n, label = true) =>
 /* ---------------------------------------------------------------- Keyboard: 1–4 answers */
 
 // The quiz most recently drawn by askIn() answers to the number keys, while it's on screen.
+// When it isn't (another page drew one since), the first quiz that is on screen answers instead.
 let keyQuiz = null;
 document.addEventListener("keydown", (e) => {
-  if (!keyQuiz || !keyQuiz.getClientRects().length || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.target.closest("input, textarea, select")) return;
-  const b = $$(".q-opt", keyQuiz)[+e.key - 1];
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, textarea, select")) return;
+  const onScreen = (el) => el && el.getClientRects().length;
+  const box = onScreen(keyQuiz) ? keyQuiz : $$(".q-opts").map((o) => o.parentElement).find(onScreen);
+  if (!box) return;
+  const b = $$(".q-opt", box)[+e.key - 1];
   if (b && !b.disabled) { e.preventDefault(); b.click(); }
 });
