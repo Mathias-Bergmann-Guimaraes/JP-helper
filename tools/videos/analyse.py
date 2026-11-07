@@ -7,6 +7,7 @@
   python analyse.py --build                write public/js/videos-data.js from what was downloaded
   python analyse.py --sample 37.2          show caption lines where a rule fired, to judge it
   python analyse.py --songs                write public/js/songs-data.js from songs.json
+  python analyse.py --transcripts          save the listed videos' captions for their transcript panels
 
 Captions are kept only in .cache (not committed). The site's data file holds grammar points, counts
 and timestamps, and no caption text. For videos, only captions written by people are used, since
@@ -19,6 +20,12 @@ skipped, and no audio is downloaded. The tab plays it from the podcast's own hos
 Songs are separate: songs.json lists them, and --songs finds each one's video and LRCLIB entry
 (saving both ids back to songs.json), then spots the grammar in the lyrics. Lyrics are only held in
 memory for that and are never saved. The tab fetches them from LRCLIB when a member opens a song.
+
+Transcripts work the same way where they can. A podcast episode's is the one its feed links to,
+which the member's browser loads from the podcast's host, so videos-data.js holds only its address.
+A video's is its human-written YouTube captions, which a browser can't read from another site, so
+--transcripts saves them in data/transcripts (not committed, like the rest of data/) and the server
+hands them to members only. It also fills in the podcasts' transcript addresses in videos-data.js.
 """
 import argparse
 import hashlib
@@ -45,6 +52,7 @@ CACHE = HERE / ".cache"
 OUT = ROOT / "public" / "js" / "videos-data.js"
 SONGS_IN = HERE / "songs.json"
 SONGS_OUT = ROOT / "public" / "js" / "songs-data.js"
+TRANSCRIPTS = ROOT / "data" / "transcripts"
 LRCLIB = "https://lrclib.net/api"
 
 # Where candidates come from: channel video lists and searches. Titles decide nothing on their own;
@@ -115,18 +123,23 @@ def gather():
             old = json.loads(path.read_text(encoding="utf-8"))
             path.write_text(json.dumps({**old, **r}, ensure_ascii=False), encoding="utf-8")
             continue
-        try:
-            found = [t for t in api.list(r["id"]) if t.language_code.startswith("ja") and not t.is_generated]
-            r["captions"] = [[round(s.start, 1), s.text] for s in found[0].fetch()] if found else None
-        except Exception as e:
-            # A block from YouTube must stop the run. Saving it would mark every video as captionless.
-            if "IpBlocked" in type(e).__name__ or "RequestBlocked" in type(e).__name__:
-                sys.exit(f"YouTube blocked the requests after {i} videos. Run again later; it carries on from here.")
-            r["captions"] = None
-        path.write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
-        time.sleep(1.5)
+        download_captions(api, r, path, i)
         if i % 25 == 0:
             print(" ", i, "checked")
+
+
+def download_captions(api, r, path, done):
+    """Saves the video's human-written Japanese captions (None when it has none) into its cache file."""
+    try:
+        found = [t for t in api.list(r["id"]) if t.language_code.startswith("ja") and not t.is_generated]
+        r["captions"] = [[round(s.start, 1), s.text] for s in found[0].fetch()] if found else None
+    except Exception as e:
+        # A block from YouTube must stop the run. Saving it would mark every video as captionless.
+        if "IpBlocked" in type(e).__name__ or "RequestBlocked" in type(e).__name__:
+            sys.exit(f"YouTube blocked the requests after {done} videos. Run again later; it carries on from here.")
+        r["captions"] = None
+    path.write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
+    time.sleep(1.5)
 
 
 def fetch(url):
@@ -292,7 +305,8 @@ def build():
         videos.append({
             "id": v["id"], "title": v["title"], "channel": v["channel"], "seconds": v["seconds"],
             "sentences": len(sents), "cpm": round(chars / minutes), "level": level_for(levels, len(sents), COVER),
-            **({"kind": "audio", "audio": v["audio"], "art": v["art"], "link": v["link"]} if v.get("kind") == "audio" else {}),
+            **({"kind": "audio", "audio": v["audio"], "art": v["art"], "link": v["link"], "transcript": v["transcript"]}
+               if v.get("kind") == "audio" else {}),
             "levels": {str(k): levels[k] for k in sorted(levels)},
             "points": {k: [p["n"], p["t"]] for k, p in sorted(points.items(), key=lambda x: [int(n) for n in x[0].split(".")])},
         })
@@ -312,12 +326,67 @@ def build():
     for lo, hi in bands:
         band = [v for v in kept if lo <= v["level"] <= hi]
         print(f"  lessons {lo}-{hi}: {len(band)}, {sum(v.get('kind') == 'audio' for v in band)} of them podcasts")
+    write_videos(kept)
+
+
+def write_videos(kept):
     head = ("// Written by tools/videos/analyse.py, so don't edit it by hand. Grammar found in each video's\n"
             "// human-written captions: points are \"lesson.point\" keys from lessons.js with [count, [seconds…]],\n"
-            "// and levels counts sentences by the highest lesson each one needs. No caption text is stored.\n")
+            "// and levels counts sentences by the highest lesson each one needs. No caption text is stored: a\n"
+            "// podcast's transcript is only its address, and videos' are in data/transcripts on the server.\n")
     body = json.dumps(kept, ensure_ascii=False, separators=(",", ":")).replace('},{"id"', '},\n{"id"')
     OUT.write_text(f"{head}const VIDEOS = {body};\nconst VIDEOS_UNDETECTED = {json.dumps(sorted(UNDETECTED))};\n", encoding="utf-8")
     print("wrote", OUT, OUT.stat().st_size // 1024, "KB")
+
+
+def read_videos():
+    text = OUT.read_text(encoding="utf-8")
+    return json.loads(text[text.index("const VIDEOS = ") + 15:text.index(";\nconst VIDEOS_UNDETECTED")])
+
+
+def transcripts(links_only=False):
+    """Podcast transcript addresses into videos-data.js, then each listed video's captions into data/transcripts.
+
+    Uses the captions --gather saved in .cache and downloads only missing ones, so it works on a fresh
+    checkout too. Each file is [[seconds, sentence], …], cut into sentences as the grammar count cuts them.
+    """
+    videos = read_videos()
+    links = {}
+    for feed in PODCASTS:
+        try:
+            links.update((ep["id"], ep["transcript"]) for ep in feed_episodes(feed, MIN_SECONDS, MAX_SECONDS))
+        except OSError as e:
+            print("FAILED   ", feed, type(e).__name__)
+    pods = [v for v in videos if v.get("kind") == "audio"]
+    for v in pods:
+        if links.get(v["id"]):
+            v["transcript"] = links[v["id"]]
+    write_videos(videos)
+    print(f"{sum(bool(v.get('transcript')) for v in pods)} of {len(pods)} podcast episodes have a transcript address")
+    if links_only:
+        return
+
+    CACHE.mkdir(exist_ok=True)
+    TRANSCRIPTS.mkdir(parents=True, exist_ok=True)
+    api = None
+    yt = [v for v in videos if not v.get("kind")]
+    saved = 0
+    for i, v in enumerate(yt):
+        path = CACHE / f"{v['id']}.json"
+        cached = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        if "captions" not in cached:
+            if api is None:
+                from youtube_transcript_api import YouTubeTranscriptApi
+                api = YouTubeTranscriptApi()
+            cached = {**cached, "id": v["id"], "title": v["title"], "channel": v["channel"], "seconds": v["seconds"]}
+            download_captions(api, cached, path, i)
+        if not cached.get("captions"):
+            print("NO CAPTIONS", v["id"], v["title"])
+            continue
+        lines = [[round(t, 1), s] for t, s in sentences(cached["captions"])]
+        (TRANSCRIPTS / f"{v['id']}.json").write_text(json.dumps(lines, ensure_ascii=False), encoding="utf-8")
+        saved += 1
+    print(f"saved {saved} of {len(yt)} video transcripts in {TRANSCRIPTS}")
 
 
 def lrc_lines(text):
@@ -478,6 +547,8 @@ if __name__ == "__main__":
     ap.add_argument("--build", action="store_true")
     ap.add_argument("--sample")
     ap.add_argument("--songs", action="store_true")
+    ap.add_argument("--transcripts", action="store_true")
+    ap.add_argument("--links-only", action="store_true", help="with --transcripts: only the podcast addresses")
     a = ap.parse_args()
     if a.test:
         test()
@@ -491,3 +562,5 @@ if __name__ == "__main__":
         sample(a.sample)
     if a.songs:
         songs()
+    if a.transcripts:
+        transcripts(a.links_only)

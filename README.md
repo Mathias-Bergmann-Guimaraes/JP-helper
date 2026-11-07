@@ -76,7 +76,21 @@ python analyse.py --test
 python analyse.py --gather
 python analyse.py --podcasts
 python analyse.py --build
+python analyse.py --transcripts
 ```
+
+Every video and episode has a **transcript** beside the player, timed like a song's lyrics: the line
+being said lights up as it plays, the box follows along, and pressing a line jumps to it. Each comes
+from where it already exists online, and none is made by the site. A podcast episode's is the
+transcript its own feed links to, which the member's browser loads from the podcast's host (Spotify's
+CDN for all of the current shows), so `videos-data.js` holds only its address. Those are machine-made
+and some words are misheard. A video's is the captions its makers wrote on YouTube. A browser can't
+read those from another site, so `python analyse.py --transcripts` saves them in `data/transcripts/`,
+one file per video, and the server hands them only to members at `/transcripts/<video id>.json`.
+`data/` isn't committed, so copy `data/transcripts/` to the server's `data/` folder after running it.
+It uses the captions `--gather` already saved in `.cache` and downloads only the missing ones, so it
+works on a fresh checkout too. Until a video's file is there, its page offers to show YouTube's own
+captions on the video instead. `--transcripts --links-only` refreshes just the podcast addresses.
 
 Its **Music** filter lists songs, measured the same way from their lyrics. A song's page shows the lyrics
 beside the video: the current line lights up as it plays, pressing a line jumps to it, and **Sooner** and
@@ -95,8 +109,8 @@ testing each member's id against the file. Removing a member removes their votes
 favourite channels are private to each account and saved with its progress. The tab can list just
 those, and **Remove** deletes them along with the rest of the account's progress.
 
-Captions and transcripts stay in `tools/videos/.cache`, which isn't committed, and the site stores
-only grammar points, counts and times. The video player is YouTube's own embed, from
+Captions and transcripts stay in `tools/videos/.cache` and `data/transcripts/`, neither of which is
+committed, and `public/` stores only grammar points, counts, times and podcast transcript addresses. The video player is YouTube's own embed, from
 `youtube-nocookie.com`, so opening a video contacts YouTube, and the list's thumbnails load from
 `i.ytimg.com`. Podcast episodes play from the podcast's own host. Only shows whose feeds link to a
 transcript can be included, and those transcripts are machine-made, so an episode's grammar list is

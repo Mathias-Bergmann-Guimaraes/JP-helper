@@ -32,6 +32,8 @@ const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : 
 const PROGRESS_FILE = path.join(path.dirname(DATA_FILE), "progress.json");
 const USAGE_FILE = path.join(path.dirname(DATA_FILE), "usage.json");
 const VOTES_FILE = path.join(path.dirname(DATA_FILE), "votes.json");
+// Listen-tab videos' captions, saved by tools/videos/analyse.py --transcripts. Members only, like the site.
+const TRANSCRIPT_DIR = path.join(path.dirname(DATA_FILE), "transcripts");
 
 const COOKIE = "jpg_access";
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
@@ -739,6 +741,11 @@ const publicServer = http.createServer(async (req, res) => {
     return handleUsage(req, res, me);
   }
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Method not allowed");
+  const transcript = pathname.match(/^\/transcripts\/([\w-]{11})\.json$/);
+  if (transcript) {
+    if (!member) return sendJson(res, 403, { error: "Access required" });
+    return sendFile(res, TRANSCRIPT_DIR, `/${transcript[1]}.json`);
+  }
 
   // Members get the site. Everyone else gets the login page at the site's address, the fonts it
   // uses, and nothing more.

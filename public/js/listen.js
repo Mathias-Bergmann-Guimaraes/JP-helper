@@ -2,7 +2,7 @@
 // grammar each one needs. VIDEOS comes from videos-data.js, written by tools/videos/analyse.py.
 // Grammar is spotted by rules, so the numbers are a good guide rather than a count by a teacher.
 
-VIDEOS.push(...SONGS); // from songs-data.js: songs share everything but the lyrics panel, at the end of this file
+VIDEOS.push(...SONGS); // from songs-data.js: songs share everything, with lyrics where the others have a transcript
 
 const listenState = { open: null, show: "reach", channel: "", kind: "all" };
 const listenIsAudio = (v) => v.kind === "audio";
@@ -183,7 +183,7 @@ function renderListen() {
   box.innerHTML = `
     <div class="card hero">
       <h1><span class="accent">Listen</span> to real Japanese</h1>
-      <p>Real YouTube videos, podcasts and songs, measured against the course. Each one shows the grammar it uses and how much of it you've studied, so you can pick something you'll mostly follow. Songs come with their lyrics.</p>
+      <p>Real YouTube videos, podcasts and songs, measured against the course. Each one shows the grammar it uses and how much of it you've studied, so you can pick something you'll mostly follow. Each one comes with its transcript, or its lyrics for a song, to read along as it plays.</p>
     </div>
     <div class="card listen-bar">
       <label>I've studied up to
@@ -266,7 +266,7 @@ function renderListenVideo(box, v) {
 
   box.innerHTML = `
     <div class="listen-top"><button class="btn" id="listenBack">← Back to the list</button></div>
-    <div class="${music ? "listen-song" : ""}">
+    <div class="listen-song">
     <div class="card listen-player">
       ${listenIsAudio(v) ? `
         <div class="listen-audio">
@@ -274,7 +274,7 @@ function renderListenVideo(box, v) {
           <audio id="listenAudio" controls preload="none" referrerpolicy="no-referrer" src="${listenEsc(v.audio)}"></audio>
         </div>` : `
         <div class="listen-frame">
-          <iframe id="listenFrame" src="${listenSrc(v.id, 0, false, music)}" title="${listenEsc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <iframe id="listenFrame" src="${listenSrc(v.id, 0, false, true)}" title="${listenEsc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>`}
       <h2>${listenEsc(v.title)}</h2>
       <p class="small muted"><span id="listenChannelName">${listenChannelHTML(v)}</span> · ${listenClock(v.seconds)}${music ? "" : ` · ${pace} speech`}
@@ -285,7 +285,7 @@ function renderListenVideo(box, v) {
       <div class="listen-actions" data-actions="${v.id}"></div>
       <div class="listen-actions" id="listenFavBox"></div>
     </div>
-    ${music ? listenLyricsHTML(v) : ""}
+    ${listenTextHTML(v)}
     </div>
     <div class="card">
       <div class="step-label">Grammar you haven't reached (${fresh.length})</div>
@@ -309,27 +309,20 @@ function renderListenVideo(box, v) {
     $("#listenRetryBtn").onclick = () => { $("#listenRetry").remove(); failed.load(); failed.play().catch(() => {}); };
   };
   $$("[data-seek]", box).forEach((b) => (b.onclick = () => {
-    const audio = $("#listenAudio");
-    if (audio) {
-      audio.currentTime = Number(b.dataset.seek);
-      audio.play().catch(() => {});
-    } else if (music) {
-      listenSongSeek(v, Number(b.dataset.seek) + listenShift(v));
-    } else {
-      $("#listenFrame").src = listenSrc(v.id, Number(b.dataset.seek), true);
-    }
+    listenSeek(v, Number(b.dataset.seek) + listenShift(v));
     scrollBelowBar($(".listen-player"));
   }));
   $$("[data-lesson]", box).forEach((b) => (b.onclick = () => {
     openLessonTab(LESSONS.find((l) => l.n === Number(b.dataset.lesson)));
   }));
-  if (music) listenStartLyrics(v);
+  listenStartText(v);
 }
 
-// `tracked` lets the page follow the song's time, for the lyrics, and move it without a reload.
-function listenSrc(id, start, play, tracked) {
+// `tracked` lets the page follow the video's time, for the transcript, and move it without a reload.
+// `cc` turns on YouTube's own Japanese captions, for a video whose transcript the site doesn't have.
+function listenSrc(id, start, play, tracked, cc) {
   const track = tracked && location.protocol.startsWith("http") ? `&enablejsapi=1&origin=${encodeURIComponent(location.origin)}` : "";
-  return `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&cc_load_policy=0${start ? `&start=${Math.floor(start)}` : ""}${play ? "&autoplay=1" : ""}${track}`;
+  return `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&cc_load_policy=${cc ? "1&cc_lang_pref=ja" : "0"}${start ? `&start=${Math.floor(start)}` : ""}${play ? "&autoplay=1" : ""}${track}`;
 }
 
 function listenPointsHTML(v, keys) {
@@ -350,30 +343,43 @@ function listenPointsHTML(v, keys) {
   }).join("")}</ul>`;
 }
 
-/* ---------------------------------------------------------------- Song lyrics */
+/* ---------------------------------------------------------------- Transcripts and lyrics */
 
-// Lyrics aren't stored on this site. The member's browser fetches them from LRCLIB (lrclib.net, a free
-// database its users write) when a song is opened. Its lines have times, so the player can drive them:
-// YouTube's embed reports its time by postMessage, and takes commands the same way.
+// Every item has timed lines to read along with, each from where it already exists online:
+// - a song's lyrics from LRCLIB (lrclib.net, a free database its users write),
+// - a podcast episode's transcript from the address its own feed gives (machine-made, on the host's CDN),
+// - a video's captions, which its makers wrote on YouTube. Browsers can't read those from another
+//   site, so tools/videos/analyse.py --transcripts saves them on the server, for members only.
+// The member's browser fetches them when an item is opened, and the player drives them: YouTube's
+// embed reports its time by postMessage and takes commands the same way, and audio has timeupdate.
 const LISTEN_YT_ORIGIN = "https://www.youtube-nocookie.com";
-const listenLyric = { lines: [], at: -1, ready: false, touched: 0, hello: null, cache: new Map() };
+const listenLyric = { lines: [], at: -1, ready: false, cc: false, touched: 0, hello: null, cache: new Map() };
 
 // The lyrics are timed to the record, and a video can start earlier or later. Each song keeps its own
-// correction on this device: seconds to add to every line's time.
+// correction on this device: seconds to add to every line's time. Transcripts are timed to their own
+// video or audio, so only songs offer it.
 const listenShift = (v) => store.get("listenLyricShift", {})[v.id] || 0;
 
-function listenLyricsHTML(v) {
+const listenTextName = (v) => (listenIsMusic(v) ? "lyrics" : "transcript");
+
+function listenTextHTML(v) {
+  const note = listenIsMusic(v)
+    ? `From <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a>, written by its users, so a line may be off.`
+    : listenIsAudio(v)
+    ? "The episode's own transcript, from its podcast. It's made by machine, so some words are misheard."
+    : "The captions written for this video on YouTube.";
   return `
     <div class="card listen-lyrics-card">
-      <div class="step-label">Lyrics</div>
-      <div class="listen-lyrics" id="listenLyrics" lang="ja" tabindex="0"><p class="muted small">Loading the lyrics…</p></div>
+      <div class="step-label">${listenIsMusic(v) ? "Lyrics" : "Transcript"}</div>
+      <div class="listen-lyrics" id="listenLyrics" lang="ja" tabindex="0"><p class="muted small">Loading the ${listenTextName(v)}…</p></div>
+      ${listenIsMusic(v) ? `
       <div class="listen-shift" id="listenShiftBox" hidden>
         <span class="small muted">Out of time with the video?</span>
         <button class="btn" data-shift="-0.5" title="Show each line half a second sooner">Sooner</button>
         <button class="btn" data-shift="0.5" title="Show each line half a second later">Later</button>
         <span class="small muted" id="listenShiftNow"></span>
-      </div>
-      <p class="small muted listen-note">From <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a>, written by its users, so a line may be off. Press a line to jump to it.</p>
+      </div>` : ""}
+      <p class="small muted listen-note">${note} The line being ${listenIsMusic(v) ? "sung" : "said"} lights up. Press a line to jump to it.</p>
     </div>`;
 }
 
@@ -386,35 +392,89 @@ function listenParseLrc(text) {
   return lines;
 }
 
-async function listenStartLyrics(v) {
+// Machine transcripts put a space after every Japanese character, which only Latin words need.
+const LISTEN_JA_SPACE = /(?<=[ぁ-んァ-ヶー一-龥、。？！])[ 　]+(?=[ぁ-んァ-ヶー一-龥、。？！])/g;
+
+function listenParseSrt(text) {
+  const lines = [];
+  for (const block of (text || "").replace(/\r/g, "").split(/\n\s*\n/)) {
+    const m = block.match(/(\d+):(\d+):(\d+)[,.](\d+)\s*-->/);
+    if (!m) continue;
+    const said = block.slice(m.index + m[0].length).split("\n").slice(1).join(" ").replace(LISTEN_JA_SPACE, "").trim();
+    if (said) lines.push({ t: Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(`0.${m[4]}`), text: said });
+  }
+  return lines;
+}
+
+// The item's lines as [{ t, text }]. Throws "missing" when nobody has saved a video's transcript yet.
+async function listenLoadText(v) {
+  const get = async (url, opts) => {
+    const r = await fetch(url, opts);
+    if (r.status === 404) throw new Error("missing");
+    if (!r.ok) throw new Error(r.status);
+    return r;
+  };
+  if (listenIsMusic(v)) {
+    const entry = await (await get(`https://lrclib.net/api/get/${v.lrc}`, { referrerPolicy: "no-referrer" })).json();
+    return listenParseLrc(entry.syncedLyrics);
+  }
+  if (listenIsAudio(v)) {
+    if (!v.transcript) throw new Error("missing");
+    return listenParseSrt(await (await get(v.transcript, { referrerPolicy: "no-referrer" })).text());
+  }
+  const rows = await (await get(`/transcripts/${v.id}.json`)).json();
+  return rows.map(([t, text]) => ({ t, text }));
+}
+
+async function listenStartText(v) {
   const box = $("#listenLyrics");
-  Object.assign(listenLyric, { lines: [], at: -1, ready: false });
+  Object.assign(listenLyric, { lines: [], at: -1, ready: false, cc: false });
   listenGreetPlayer();
+  const audio = $("#listenAudio");
+  if (audio) audio.ontimeupdate = () => listenFollow(audio.currentTime);
   try {
-    let entry = listenLyric.cache.get(v.lrc);
-    if (!entry) {
-      const r = await fetch(`https://lrclib.net/api/get/${v.lrc}`, { referrerPolicy: "no-referrer" });
-      if (!r.ok) throw new Error(r.status);
-      entry = await r.json();
-      listenLyric.cache.set(v.lrc, entry);
+    let lines = listenLyric.cache.get(v.id);
+    if (!lines) {
+      lines = await listenLoadText(v);
+      if (!lines.length) throw new Error("no lines");
+      listenLyric.cache.set(v.id, lines);
     }
     if (listenState.open !== v.id || !$("#listenLyrics")) return; // they've moved on while it loaded
-    listenLyric.lines = listenParseLrc(entry.syncedLyrics);
-    if (!listenLyric.lines.length) throw new Error("no lines");
-    box.innerHTML = listenLyric.lines.map((l, i) => l.text
+    listenLyric.lines = lines;
+    box.innerHTML = lines.map((l, i) => l.text
       ? `<button class="listen-line" data-line="${i}">${listenEsc(l.text)}</button>`
       : `<span class="listen-gap" data-line="${i}"></span>`).join("");
-    $$(".listen-line", box).forEach((b) => (b.onclick = () => listenSongSeek(v, listenLyric.lines[b.dataset.line].t + listenShift(v))));
-    // Reading ahead shouldn't be fought: following pauses for a moment after you scroll the lyrics.
+    $$(".listen-line", box).forEach((b) => (b.onclick = () => listenSeek(v, lines[b.dataset.line].t + listenShift(v))));
+    // Reading ahead shouldn't be fought: following pauses for a moment after you scroll the text.
     ["wheel", "touchmove"].forEach((type) => box.addEventListener(type, () => { listenLyric.touched = Date.now(); }, { passive: true }));
+    if (audio) listenFollow(audio.currentTime);
+    if (!listenIsMusic(v)) return;
     $("#listenShiftBox").hidden = false;
     $$("[data-shift]").forEach((b) => (b.onclick = () => listenMoveShift(v, Number(b.dataset.shift))));
     listenShowShift(v);
-  } catch {
+  } catch (e) {
     if (listenState.open !== v.id || !$("#listenLyrics")) return;
-    const search = `https://www.google.com/search?q=${encodeURIComponent(`${v.channel} ${v.title} 歌詞`)}`;
-    box.innerHTML = `<p class="small muted">The lyrics didn't load. <button class="btn" id="listenLyricsRetry">Try again</button> or <a href="${search}" target="_blank" rel="noopener">search for them</a>.</p>`;
-    $("#listenLyricsRetry").onclick = () => listenStartLyrics(v);
+    if (e.message === "missing" && !listenIsMusic(v) && !listenIsAudio(v)) {
+      // The captions are still on YouTube, so the player can show them on the video instead.
+      box.innerHTML = `<p class="small muted">This video's transcript isn't saved on the site yet. Its captions are on YouTube, though. <button class="btn" id="listenCaptions">Show them on the video</button></p>`;
+      $("#listenCaptions").onclick = () => {
+        listenLyric.cc = true;
+        listenLyric.ready = false;
+        $("#listenFrame").src = listenSrc(v.id, 0, true, true, true);
+        listenGreetPlayer();
+        box.innerHTML = `<p class="small muted">The captions are on the video now. If they don't show, press CC in the player.</p>`;
+      };
+      return;
+    }
+    if (e.message === "missing" && listenIsAudio(v)) {
+      box.innerHTML = `<p class="small muted">This episode's podcast no longer offers a transcript.</p>`;
+      return;
+    }
+    const elsewhere = listenIsMusic(v)
+      ? ` or <a href="https://www.google.com/search?q=${encodeURIComponent(`${v.channel} ${v.title} 歌詞`)}" target="_blank" rel="noopener">search for them</a>`
+      : listenIsAudio(v) && v.link ? ` or <a href="${listenEsc(v.link)}" target="_blank" rel="noopener">open the episode</a>` : "";
+    box.innerHTML = `<p class="small muted">The ${listenTextName(v)} didn't load. <button class="btn" id="listenLyricsRetry">Try again</button>${elsewhere}.</p>`;
+    $("#listenLyricsRetry").onclick = () => listenStartText(v);
   }
 }
 
@@ -446,16 +506,22 @@ function listenGreetPlayer() {
   }, 500);
 }
 
-function listenSongSeek(v, seconds) {
+function listenSeek(v, seconds) {
   const time = Math.max(0, seconds);
+  listenLyric.touched = 0;
+  const audio = $("#listenAudio");
+  if (audio) {
+    audio.currentTime = time;
+    audio.play().catch(() => {});
+    return;
+  }
   if (!listenLyric.ready) { // not talking yet, so fall back on reloading the player at that time
-    $("#listenFrame").src = listenSrc(v.id, time, true, true);
+    $("#listenFrame").src = listenSrc(v.id, time, true, true, listenLyric.cc);
     listenGreetPlayer();
     return;
   }
   listenPlayerSay({ event: "command", func: "seekTo", args: [time, true] });
   listenPlayerSay({ event: "command", func: "playVideo", args: [] });
-  listenLyric.touched = 0;
 }
 
 function listenFollow(time) {
@@ -473,7 +539,7 @@ function listenFollow(time) {
   if (!line) return; // a gap between lines
   line.classList.add("now");
   if (Date.now() - listenLyric.touched < 4000) return;
-  // Moves only the lyrics box, never the page.
+  // Moves only the transcript box, never the page.
   const top = line.offsetTop - (box.clientHeight - line.offsetHeight) / 2;
   box.scrollTo({ top, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
@@ -486,7 +552,7 @@ addEventListener("message", (e) => {
   listenLyric.ready = true;
   // A label can stop its video playing on other sites, which YouTube only says once the player has loaded.
   if (data.event === "onError" && [100, 101, 150].includes(data.info) && !$("#listenBlocked")) {
-    $(".listen-frame").insertAdjacentHTML("afterend", `<p class="small muted" id="listenBlocked">This video won't play here. <a href="https://www.youtube.com/watch?v=${listenEsc(listenState.open)}" target="_blank" rel="noopener">Open it on YouTube</a>, and the lyrics are still below.</p>`);
+    $(".listen-frame").insertAdjacentHTML("afterend", `<p class="small muted" id="listenBlocked">This video won't play here. <a href="https://www.youtube.com/watch?v=${listenEsc(listenState.open)}" target="_blank" rel="noopener">Open it on YouTube</a>. You can still read the ${listenTextName(VIDEOS.find((x) => x.id === listenState.open))} here.</p>`);
   }
   const time = data.info && data.info.currentTime;
   if (typeof time === "number") listenFollow(time);
