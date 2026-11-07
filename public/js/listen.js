@@ -392,16 +392,90 @@ function listenParseLrc(text) {
 }
 
 // Machine transcripts put a space after every Japanese character, which only Latin words need.
-const LISTEN_JA_SPACE = /(?<=[ぁ-んァ-ヶー一-龥、。？！])[ 　]+(?=[ぁ-んァ-ヶー一-龥、。？！])/g;
+// Japanese doesn't space numbers either (35 都道府県), so those spaces go too.
+const LISTEN_JA_SPACE = /(?<=[ぁ-んァ-ヶー一-龥々、。？！])[ 　]+(?=[ぁ-んァ-ヶー一-龥々、。？！0-9])|(?<=[0-9%])[ 　]+(?=[ぁ-んァ-ヶー一-龥々、。？！])/g;
 
+// A podcast's SRT as whole sentences. Its cues break wherever the speech paused, mid-sentence and even
+// mid-word, and the machine puts a 。 or ？ at many of those breaks (受。け身, カ。フェ). So the cues are
+// joined into one run of characters, each timed by its place in its cue, the marks that can't end a
+// sentence are dropped, and the run is cut at the rest. A line starts when its first character is said.
 function listenParseSrt(text) {
-  const lines = [];
+  const seconds = (h, m, s, ms) => Number(h) * 3600 + Number(m) * 60 + Number(s) + Number(`0.${ms}`);
+  const chars = []; // { ch, t, lineEnd }
   for (const block of (text || "").replace(/\r/g, "").split(/\n\s*\n/)) {
-    const m = block.match(/(\d+):(\d+):(\d+)[,.](\d+)\s*-->/);
+    const m = block.match(/(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)/);
     if (!m) continue;
-    const said = block.slice(m.index + m[0].length).split("\n").slice(1).join(" ").replace(LISTEN_JA_SPACE, "").trim();
-    if (said) lines.push({ t: Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(`0.${m[4]}`), text: said });
+    const start = seconds(m[1], m[2], m[3], m[4]);
+    const end = Math.max(start, seconds(m[5], m[6], m[7], m[8]));
+    const rows = block.slice(m.index + m[0].length).split("\n").map((r) => r.replace(LISTEN_JA_SPACE, "").trim()).filter(Boolean);
+    const count = rows.join("").length || 1;
+    let k = 0;
+    for (const row of rows) {
+      // Latin words split over two rows still need their space.
+      if (/[A-Za-z0-9]/.test(chars.at(-1)?.ch || "") && /^[A-Za-z0-9]/.test(row)) chars.push({ ch: " ", t: start });
+      for (const ch of row) chars.push({ ch, t: start + ((end - start) * k++) / count });
+      chars.at(-1).lineEnd = true;
+    }
   }
+  return listenCutSentences(chars);
+}
+
+const listenWords = typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter("ja", { granularity: "word" }) : null;
+
+// True when a 。？！ at chars[i] can't be the end of a sentence.
+function listenFalseEnd(chars, i, before) {
+  let j = i + 1;
+  while (chars[j] && /[\s。？！?!]/.test(chars[j].ch)) j++;
+  const after = chars.slice(j, j + 6).map((c) => c.ch).join("");
+  if (!after) return false;
+  // Nothing starts a sentence with these: they carry on a word or attach to the one before.
+  if (/^[をにがへくてどっゃゅょんーぁぃぅぇぉ]/.test(after)) return true;
+  // Nor with endings like です and ません, a は that isn't はい, or a quoting と (…だ。と思いました).
+  if (/^(?:です|でし|ます|まし|ませ|せん|は[^いあぁー]|と[言思。？、])/.test(after)) return true;
+  if (/[をへ]$/.test(before) || (/と$/.test(before) && /^[言思]/.test(after))) return true;
+  // Machine marks at the end of a row often fall after a kanji or katakana in the middle of a word or phrase.
+  if (chars[i].lineEnd && /[一-龥々ァ-ヶ]$/.test(before)) return true;
+  // The browser's Japanese dictionary: no word break there means the mark split a word (あり。がとう).
+  if (listenWords) {
+    const left = before.slice(-6);
+    for (const s of listenWords.segment(left + after)) if (s.index === left.length) return false;
+    return true;
+  }
+  return false;
+}
+
+function listenCutSentences(chars) {
+  const lines = [];
+  let text = "", start = null;
+  const flush = () => {
+    const said = text.trim();
+    // A piece of a few characters left by a stray mark (とか？, せん。) reads best with the line before.
+    if (said && lines.length && said.replace(/[。？！?!、」』）)]/g, "").length <= 3) lines.at(-1).text += said;
+    else if (said) lines.push({ t: start, text: said });
+    text = "";
+    start = null;
+  };
+  for (let i = 0; i < chars.length; i++) {
+    const { ch, t, lineEnd } = chars[i];
+    if (start === null) {
+      if (/[\s。？！?!、]/.test(ch)) continue; // a sentence doesn't start with leftover punctuation
+      start = t;
+    }
+    if (/[。？！?!]/.test(ch)) {
+      if (listenFalseEnd(chars, i, text)) continue;
+      text += ch;
+      while (chars[i + 1] && /[。？！?!」』）)]/.test(chars[i + 1].ch)) text += chars[++i].ch;
+      flush();
+      continue;
+    }
+    text += ch;
+    if (!lineEnd) continue;
+    // The machine sometimes leaves out a 。 where a row ends with a polite ending and the next row starts afresh.
+    const next = chars[i + 1]?.ch || "";
+    if (next && /(?:です|ます|ました|でした|ません|でしょう)$/.test(text) && !/[ねよかがけしのとでにはもなわっ、。？！]/.test(next)) flush();
+    else if (text.length >= 80) flush(); // a long run with no sentence end at all
+  }
+  flush();
   return lines;
 }
 
