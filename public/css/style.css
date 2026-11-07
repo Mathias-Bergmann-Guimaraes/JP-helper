@@ -952,7 +952,58 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .chunks.compact .chunk-jp { font-size: 1.25rem; }
 
 .sv-translation { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: 1.05rem; }
-.sv-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+.sv-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.sv-actions .btn[hidden] { display: none; }
+.sv-picker { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
+.sv-pick {
+  font: inherit;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 13px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.sv-pick:hover { color: var(--text); border-color: var(--muted); }
+.sv-pick.on { color: var(--surface); background: var(--text); border-color: var(--text); }
+.sv-jp-label { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.sv-jp-label .pill { text-transform: none; letter-spacing: 0; font-size: .75rem; }
+.pill.shift { --pc: var(--c-also); }
+.pill.warn { --pc: var(--c-range); }
+.sv-off { text-decoration: underline wavy color-mix(in srgb, var(--c-range) 70%, transparent); text-underline-offset: 6px; }
+.sv-why {
+  --vc: var(--muted);
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--vc) 10%, var(--surface));
+  border-left: 4px solid var(--vc);
+  font-size: .9rem;
+}
+.sv-why.good { --vc: var(--good); }
+.sv-why.shift { --vc: var(--c-also); }
+.sv-why.warn { --vc: var(--c-range); }
+.sv-why.bad { --vc: var(--bad); }
+.sv-why .hl { font-weight: 700; color: var(--accent); }
+#svJp .chunk { position: relative; }
+#svJp .chunk.focus { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-also) 35%, transparent); }
+#svJp .chunk.focus::before {
+  content: "★ focus";
+  position: absolute;
+  top: -10px;
+  right: 8px;
+  font-size: .6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  background: var(--c-also);
+  color: var(--surface);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
 
 /* Each card is as wide as its sentence on one line, then the row shares out what is left. */
 .patterns, .pat-examples { display: flex; flex-wrap: wrap; gap: 14px; }

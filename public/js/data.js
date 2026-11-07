@@ -25,7 +25,14 @@ const ROLES = {
   verb:    { label: "Verb / Predicate", color: "var(--c-verb)",    hint: "always comes last" },
 };
 
-// Sentence explorer. enOrder = indexes of chunks in English word order.
+// Sentence explorer. chunks are listed in the natural (default) Japanese order.
+// rule    = short name of what the sentence teaches (shown on its picker chip).
+// enOrder = indexes of chunks in English word order.
+// orders  = other ways to arrange the blocks, each with a verdict:
+//   natural → just as natural as the default
+//   shift   → natural, but the emphasis moves; focus = the chunk(s) now in the spotlight
+//   awkward → understandable, but a native speaker wouldn't say it like that
+//   broken  → the meaning changes or falls apart
 const SENTENCES = [
   {
     chunks: [
@@ -36,6 +43,13 @@ const SENTENCES = [
     ],
     enOrder: [0, 3, 2, 1],
     en: "I drink coffee every morning.",
+    rule: "Basic order",
+    why: "Topic → time → object → verb. を sits right next to its verb.",
+    orders: [
+      { order: [1, 0, 2, 3], v: "natural", why: "Time words often open the sentence to set the scene: “Every morning, I…”." },
+      { order: [0, 2, 1, 3], v: "shift", focus: [1], why: "The spot right before the verb gets the emphasis. Now the point is <b>how often</b>: every morning." },
+      { order: [2, 0, 1, 3], v: "awkward", why: "を is pulled far away from its verb, and は in the middle sounds like a contrast: “coffee, <i>I</i> (unlike others) drink every morning”." },
+    ],
   },
   {
     chunks: [
@@ -46,6 +60,13 @@ const SENTENCES = [
     ],
     enOrder: [0, 3, 2, 1],
     en: "Mr. Tanaka reads a book at the library.",
+    rule: "Place → object",
+    why: "Topic → place → object → verb.",
+    orders: [
+      { order: [0, 2, 1, 3], v: "shift", focus: [1], why: "Now the place is right before the verb, so the point is <b>where</b> he reads: at the library (not at home)." },
+      { order: [1, 0, 2, 3], v: "shift", why: "Opening with the place sets the scene: “At the library, Mr. Tanaka…”. は in second place can hint at a contrast (him, as opposed to others)." },
+      { order: [2, 1, 0, 3], v: "awkward", why: "Sounds scrambled. The は topic should come early to set the frame, and を wants to stay close to the verb." },
+    ],
   },
   {
     chunks: [
@@ -57,7 +78,14 @@ const SENTENCES = [
     ],
     enOrder: [0, 4, 3, 2, 1],
     en: "(I) will go to Kyoto with a friend tomorrow.",
+    rule: "Dropping 私",
     note: "The dashed block is usually left out in real Japanese — when “I” is obvious, nobody says it.",
+    why: "Topic → time → who with → where to → verb. The destination stays closest to 行きます.",
+    orders: [
+      { order: [1, 0, 2, 3, 4], v: "natural", why: "Time first is very common: “Tomorrow, I'm going…”. Without 私は, this is exactly what you'd hear." },
+      { order: [0, 1, 3, 2, 4], v: "shift", focus: [2], why: "Now “with a friend” is right before the verb, so the point is <b>who with</b>, not where." },
+      { order: [0, 3, 1, 2, 4], v: "awkward", why: "Jumping to the destination before the time breaks the “when → where” flow, so 明日 sounds like an afterthought." },
+    ],
   },
   {
     chunks: [
@@ -68,7 +96,13 @@ const SENTENCES = [
     ],
     enOrder: [3, 2, 1, 0],
     en: "There is a cat on the table.",
+    rule: "There is…",
     note: "います (living things) and あります (objects) mean “exists”. Where it exists takes に.",
+    why: "Place → new thing が → いる/ある. This is the standard “there is” order: the place first, then what's there.",
+    orders: [
+      { order: [2, 0, 1, 3], v: "shift", focus: [0, 1], why: "Starting with the cat makes the point <b>where</b> the cat is. Usually you'd then switch to は: 猫[ねこ]{は}テーブルの上[うえ]にいます = “The cat is on the table.”" },
+      { order: [0, 2, 1, 3], v: "broken", why: "の glues テーブル to 上 (“the table's top”). Pull them apart and it reads “the table's cat is on top”. Blocks joined by の move as one." },
+    ],
   },
   {
     chunks: [
@@ -79,6 +113,12 @@ const SENTENCES = [
     ],
     enOrder: [0, 3, 2, 1],
     en: "My mother wrote a letter to me.",
+    rule: "Giving to someone",
+    why: "Topic → recipient に → object を → verb. Who it's for, then what, then the action.",
+    orders: [
+      { order: [0, 2, 1, 3], v: "shift", focus: [1], why: "Now “to me” is right before the verb, so the point is <b>who</b> she wrote to: me." },
+      { order: [1, 0, 2, 3], v: "awkward", why: "は in the middle sounds like a contrast: “To me, my mother (as opposed to others) wrote…”. Fine only if you mean that." },
+    ],
   },
   {
     chunks: [
@@ -90,6 +130,98 @@ const SENTENCES = [
     ],
     enOrder: [0, 4, 3, 1, 2],
     en: "(I) work at the office from 9 until 5.",
+    rule: "From → until",
+    why: "Topic → time → place → verb. Zoom in: when, then where, then the action.",
+    orders: [
+      { order: [0, 3, 1, 2, 4], v: "shift", focus: [1, 2], why: "Now the hours are right before the verb, so the point is <b>when</b>: 9 to 5." },
+      { order: [0, 2, 1, 3, 4], v: "awkward", why: "A range goes から → まで (from → until), just like in English. Flipped, it sounds backwards." },
+      { order: [3, 1, 0, 2, 4], v: "awkward", why: "から〜まで is one unit, so don't split it. は in the middle also sounds like a contrast: “<i>I</i>, unlike others…”." },
+    ],
+  },
+  {
+    chunks: [
+      { w: "昨日[きのう]", p: "", role: "time", en: "yesterday" },
+      { w: "私[わたし]", p: "は", role: "topic", en: "I" },
+      { w: "駅[えき]", p: "で", role: "place", en: "at the station" },
+      { w: "友達[ともだち]", p: "に", role: "point", en: "a friend" },
+      { w: "会[あ]いました", p: "", role: "verb", en: "met" },
+    ],
+    enOrder: [1, 4, 3, 2, 0],
+    en: "I met a friend at the station yesterday.",
+    rule: "Time before topic",
+    why: "Time words like 昨日 can come first, even before the topic, with a comma: “Yesterday, I…”. 会う takes に for the person you meet.",
+    orders: [
+      { order: [1, 0, 2, 3, 4], v: "natural", why: "Topic first works just as well: 私[わたし]は昨日[きのう]… Both are everyday Japanese, and no comma is needed here." },
+      { order: [0, 1, 3, 2, 4], v: "shift", focus: [2], why: "Now the station is right before the verb, so the point is <b>where</b> you met: at the station." },
+      { order: [3, 1, 0, 2, 4], v: "awkward", why: "は in the middle sounds like a contrast (“to my friend, <i>I</i>…”), and the time gets buried mid-sentence." },
+    ],
+  },
+  {
+    chunks: [
+      { w: "私[わたし]", p: "は", role: "topic", en: "I" },
+      { w: "毎日[まいにち]", p: "", role: "time", en: "every day" },
+      { w: "自転車[じてんしゃ]", p: "で", role: "place", en: "by bike" },
+      { w: "会社[かいしゃ]", p: "に", role: "point", en: "to the office" },
+      { w: "行[い]きます", p: "", role: "verb", en: "go" },
+    ],
+    enOrder: [0, 4, 3, 2, 1],
+    en: "I go to the office by bike every day.",
+    rule: "How → where to",
+    why: "Topic → time → how (で) → where to (に) → verb. With verbs of movement, the destination stays closest to the verb.",
+    orders: [
+      { order: [1, 0, 2, 3, 4], v: "natural", why: "Time first sets the scene: “Every day, I…”." },
+      { order: [0, 1, 3, 2, 4], v: "shift", focus: [2], why: "Now “by bike” is right before the verb, so the point is <b>how</b> you get there: by bike, not by train." },
+      { order: [3, 2, 0, 1, 4], v: "awkward", why: "は buried in the middle sounds like a contrast, and the destination is pulled far from 行きます." },
+    ],
+  },
+  {
+    chunks: [
+      { w: "私[わたし]", p: "は", role: "topic", en: "I" },
+      { w: "友達[ともだち]", p: "に", role: "point", en: "my friend" },
+      { w: "誕生日[たんじょうび]", p: "の", role: "owner", en: "a birthday" },
+      { w: "プレゼント", p: "を", role: "object", en: "present" },
+      { w: "あげました", p: "", role: "verb", en: "gave" },
+    ],
+    enOrder: [0, 4, 1, 2, 3],
+    en: "I gave my friend a birthday present.",
+    rule: "の moves as one",
+    why: "Topic → who gets it (に) → what (を) → verb. 誕生日の describes プレゼント, so it sits right in front of it.",
+    orders: [
+      { order: [0, 2, 3, 1, 4], v: "shift", focus: [1], why: "Now “to my friend” is right before the verb, so the point is <b>who</b> got the present. 誕生日のプレゼント moves as one piece." },
+      { order: [0, 1, 3, 2, 4], v: "broken", why: "の has to sit right before the word it describes. 誕生日の with nothing after it just dangles: “a present, birthday's…”." },
+    ],
+  },
+  {
+    chunks: [
+      { w: "日本[にほん]", p: "は", role: "topic", en: "in Japan" },
+      { w: "夏[なつ]", p: "が", role: "subject", en: "Summer" },
+      { w: "暑[あつ]いです", p: "", role: "verb", en: "is hot" },
+    ],
+    enOrder: [1, 2, 0],
+    en: "Summer is hot in Japan.",
+    rule: "は〜が: big → small",
+    why: "A classic は〜が sentence. は sets the big frame (Japan), が picks the part being described (summer): “As for Japan — summer is hot.”",
+    orders: [
+      { order: [1, 0, 2], v: "awkward", why: "は〜が goes from big to small: the whole first, then the part. Swapped, it sounds jumbled. To start with summer, say 日本[にほん]{の}夏[なつ]{は}暑[あつ]いです." },
+    ],
+  },
+  {
+    chunks: [
+      { w: "私[わたし]", p: "は", role: "topic", en: "(I)", implied: true },
+      { w: "毎週[まいしゅう]土曜日[どようび]", p: "に", role: "point", en: "every Saturday" },
+      { w: "友達[ともだち]", p: "と", role: "with", en: "with friends" },
+      { w: "テニス", p: "を", role: "object", en: "tennis" },
+      { w: "します", p: "", role: "verb", en: "play" },
+    ],
+    enOrder: [0, 4, 3, 2, 1],
+    en: "(I) play tennis with friends every Saturday.",
+    rule: "Tight pairs",
+    why: "Topic → when → who with → what → verb. Days of the week take に, because they're an exact point in time.",
+    orders: [
+      { order: [1, 0, 2, 3, 4], v: "natural", why: "Time first is common: “Every Saturday, I…”." },
+      { order: [0, 2, 1, 3, 4], v: "natural", why: "Partner first, then time is fine too. The core テニスをします stays together at the end." },
+      { order: [0, 1, 3, 2, 4], v: "awkward", why: "テニスをします is a tight pair (“play tennis”). Splitting it with 友達と sounds clumsy." },
+    ],
   },
 ];
 
