@@ -1,11 +1,12 @@
-// The Practice tab: one page with four ways to practise. Roulettes are the same card as on Home
+// The Practice tab: one page with five ways to practise. Roulettes are the same card as on Home
 // (lesson-roulette.js), Write is in practice-write.js, Build is a sentence builder of its own
-// (lesson-build.js), and the quick quiz is here. Loaded after those and uses their helpers.
+// (lesson-build.js), Word order is in word-order.js, and the quick quiz is here. Loaded after those and uses their helpers.
 
 const PRACTICE_MODES = [
   { id: "roulette", ja: "運", name: "Roulettes", about: "Today's spins on what you've finished." },
   { id: "write", ja: "書", name: "Write", about: "Your own sentences, with as much guidance as you want." },
   { id: "build", ja: "組", name: "Build", about: "Colour blocks into Japanese order, or type it out." },
+  { id: "order", ja: "順", name: "Word order", about: "Reorder blocks to sound natural or move the emphasis." },
   { id: "quiz", ja: "速", name: "Quick quiz", about: "Particles, verbs, adjectives and patterns, non-stop." },
 ];
 
@@ -17,6 +18,7 @@ const practice = {
   scope: { lesson: "", part: "lesson", ...store.get("practiceScope", {}) },
   buildKey: null, // the grammar the Build part was last set up for
   builder: null,
+  order: null, // the word order game, made the first time its tile is opened
 };
 
 /* ---------------------------------------------------------------- Which grammar */
@@ -95,6 +97,7 @@ function renderPractice() {
     <div class="pr-panel" data-panel="roulette"><div id="pRoulette"></div></div>
     <div class="pr-panel" data-panel="write" id="pWrite"></div>
     <div class="pr-panel" data-panel="build" id="pBuild"></div>
+    <div class="pr-panel" data-panel="order"><div class="card lquiz pr-card" id="pOrder"></div></div>
     <div class="pr-panel" data-panel="quiz">${quizHTML()}</div>`;
   $$("[data-mode-tile]").forEach((b) => (b.onclick = () => {
     store.set("practiceMode", b.dataset.modeTile);
@@ -114,6 +117,7 @@ function showPracticeMode(id) {
   $$(".pr-panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === id));
   if (id === "write") drawWrite();
   if (id === "build") drawPracticeBuild();
+  if (id === "order" && !practice.order) practice.order = newOrderGame($("#pOrder"), { onCount: renderPracticeTiles });
   if (id === "quiz" && !quiz.q) nextQuestion();
   renderPracticeTiles();
 }
@@ -135,6 +139,7 @@ function renderPracticeTiles() {
     roulette: open.length ? `<b>${open.filter((r) => runOf(r.id).clears).length}</b> / ${open.length} cleared today` : "🔒 Finish a grammar point first",
     write: writtenToday() ? `<b>${writtenToday()}</b> written today` : "",
     build: b && b.total ? `<b>${b.score}</b> / ${b.total} right first time` : "",
+    order: practice.order && practice.order.total ? `<b>${practice.order.score}</b> / ${practice.order.total} right first time` : "",
     quiz: quiz.best ? `Best streak <b>${quiz.best}</b>` : "",
   };
   $$("[data-status]").forEach((el) => { el.innerHTML = status[el.dataset.status]; });

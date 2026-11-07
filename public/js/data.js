@@ -225,6 +225,7 @@ const SENTENCES = [
   },
 ];
 
+// Core sentence skeletons. tip = the one thing to notice. A chunk's label overrides its role's label.
 const PATTERNS = [
   {
     title: "A は B です", meaning: "A is B",
@@ -233,6 +234,25 @@ const PATTERNS = [
       { w: "学生[がくせい]", p: "です", role: "verb" },
     ],
     en: "I am a student.",
+    tip: "です is the polite “is”. In casual speech it becomes だ, or is dropped.",
+  },
+  {
+    title: "A は B じゃないです", meaning: "A is not B",
+    chunks: [
+      { w: "私[わたし]", p: "は", role: "topic" },
+      { w: "先生[せんせい]", p: "じゃないです", role: "verb" },
+    ],
+    en: "I am not a teacher.",
+    tip: "Just swap です for じゃないです. More formal: ではありません.",
+  },
+  {
+    title: "A は B ですか", meaning: "Is A B?",
+    chunks: [
+      { w: "田中[たなか]さん", p: "は", role: "topic" },
+      { w: "学生[がくせい]", p: "ですか", role: "verb" },
+    ],
+    en: "Is Mr. Tanaka a student?",
+    tip: "Add か at the end. Unlike English, the word order doesn't change.",
   },
   {
     title: "A は Adjective です", meaning: "A is (adjective)",
@@ -241,6 +261,27 @@ const PATTERNS = [
       { w: "面白[おもしろ]い", p: "です", role: "verb" },
     ],
     en: "This book is interesting.",
+    tip: "い-adjectives just add です. な-adjectives drop the な: 静[しず]かです.",
+  },
+  {
+    title: "A は B が Adjective", meaning: "A has an (adjective) B",
+    chunks: [
+      { w: "象[ぞう]", p: "は", role: "topic" },
+      { w: "鼻[はな]", p: "が", role: "subject" },
+      { w: "長[なが]い", p: "です", role: "verb" },
+    ],
+    en: "Elephants have long trunks.",
+    tip: "は sets the whole (elephants), が picks the part being described: “As for elephants, the trunk is long.”",
+  },
+  {
+    title: "A は B より Adjective", meaning: "A is more (adjective) than B",
+    chunks: [
+      { w: "東京[とうきょう]", p: "は", role: "topic" },
+      { w: "大阪[おおさか]", p: "より", role: "range", label: "Than" },
+      { w: "大[おお]きい", p: "です", role: "verb" },
+    ],
+    en: "Tokyo is bigger than Osaka.",
+    tip: "より marks what you compare against. There's no word for “more”: 大きい alone means “bigger” here.",
   },
   {
     title: "A は B を Verb", meaning: "A does something to B",
@@ -250,6 +291,37 @@ const PATTERNS = [
       { w: "します", p: "", role: "verb" },
     ],
     en: "My little brother plays games.",
+    tip: "を marks what the action is done to. It usually sits right before the verb.",
+  },
+  {
+    title: "A は 何 を Verb か", meaning: "What does A (verb)?",
+    chunks: [
+      { w: "田中[たなか]さん", p: "は", role: "topic" },
+      { w: "何[なに]", p: "を", role: "object" },
+      { w: "食[た]べます", p: "か", role: "verb" },
+    ],
+    en: "What will Mr. Tanaka eat?",
+    tip: "The question word sits where the answer goes: {何}を食[た]べますか → {ラーメン}を食[た]べます.",
+  },
+  {
+    title: "A は Place へ 行きます", meaning: "A goes to a place",
+    chunks: [
+      { w: "母[はは]", p: "は", role: "topic" },
+      { w: "駅[えき]", p: "へ", role: "dir" },
+      { w: "行[い]きます", p: "", role: "verb" },
+    ],
+    en: "My mother goes to the station.",
+    tip: "へ points toward a destination. に works here too: 駅[えき]に行[い]きます.",
+  },
+  {
+    title: "A は B が 好きです", meaning: "A likes B",
+    chunks: [
+      { w: "私[わたし]", p: "は", role: "topic" },
+      { w: "猫[ねこ]", p: "が", role: "subject" },
+      { w: "好[す]き", p: "です", role: "verb" },
+    ],
+    en: "I like cats.",
+    tip: "好き is an adjective, so the thing you like takes が, not を. Same with 嫌[きら]い, 上手[じょうず] and 分[わ]かる.",
   },
   {
     title: "Place に Thing が あります", meaning: "There is a thing in a place",
@@ -259,6 +331,17 @@ const PATTERNS = [
       { w: "あります", p: "", role: "verb" },
     ],
     en: "There is a convenience store at the station.",
+    tip: "あります for things, います for people and animals. The place comes first.",
+  },
+  {
+    title: "Thing は Place に あります", meaning: "The thing is in a place",
+    chunks: [
+      { w: "本[ほん]", p: "は", role: "topic" },
+      { w: "机[つくえ]の上[うえ]", p: "に", role: "point" },
+      { w: "あります", p: "", role: "verb" },
+    ],
+    en: "The book is on the desk.",
+    tip: "The flip of the pattern above. Use it when you both already know the thing: “<i>the</i> book is on the desk”.",
   },
 ];
 

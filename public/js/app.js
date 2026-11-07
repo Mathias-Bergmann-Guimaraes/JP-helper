@@ -269,7 +269,7 @@ function chunkHTML(c, i) {
   const p = c.p ? `<span class="p">${c.p}</span>` : "";
   return `<div class="chunk${c.implied ? " implied" : ""}" style="--c:${r.color}" data-i="${i}" title="${r.hint}">
     <div class="chunk-jp" lang="ja">${c.implied ? "(" : ""}<span class="w">${rich(c.w)}</span>${p}${c.implied ? ")" : ""}</div>
-    <div class="chunk-role">${r.label}</div>
+    <div class="chunk-role">${c.label || r.label}</div>
   </div>`;
 }
 
@@ -317,6 +317,8 @@ function renderStructure() {
       <div class="sv-why" id="svWhy"></div>
     </div>
 
+    <div class="card lquiz" id="woSentences"></div>
+
     <div class="card">
       <h2>Core patterns</h2>
       <div class="patterns">
@@ -325,6 +327,7 @@ function renderStructure() {
             <div class="pattern-title"><span lang="ja">${p.title}</span><span class="muted"> = ${p.meaning}</span></div>
             <div class="chunks compact">${p.chunks.map(chunkHTML).join("")}</div>
             <div class="muted small">${p.en}</div>
+            ${p.tip ? `<div class="pattern-tip">${rich(p.tip)}</div>` : ""}
           </div>`).join("")}
       </div>
     </div>
@@ -360,6 +363,7 @@ function renderStructure() {
   sv.addEventListener("pointerleave", () => link(null));
 
   showSentence(0);
+  newOrderGame($("#woSentences"));
 }
 
 let orderIdx = -1; // -1 = the natural default order; otherwise an index into SENTENCES[i].orders

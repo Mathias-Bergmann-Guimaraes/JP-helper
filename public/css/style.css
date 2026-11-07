@@ -954,6 +954,41 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .sv-translation { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: 1.05rem; }
 .sv-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .sv-actions .btn[hidden] { display: none; }
+/* Word order game (word-order.js) */
+.wo-goal {
+  --gc: var(--good);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border-left: 4px solid var(--gc);
+  background: color-mix(in srgb, var(--gc) 10%, var(--surface));
+}
+.wo-goal.emph { --gc: var(--c-also); }
+.wo-goal b { font-size: 1.05rem; }
+.wo-en { margin: 12px 0 0; font-size: 1.05rem; }
+.wo-tip { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 6px; }
+.wo-answer, .wo-bank { min-height: 76px; padding: 8px; border-radius: 12px; border: 2px solid transparent; }
+.wo-answer { background: var(--surface-2); }
+.wo-bank.wo-over { border-color: var(--accent); }
+/* touch-action: a swipe on a block drags it, so the browser mustn't take it to scroll the page. */
+.wo-pick { all: unset; display: flex; cursor: grab; border-radius: 12px; touch-action: none; }
+.wo-pick.sb-ghost { position: fixed; }
+.wo-pick:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.wo-pick:hover .chunk { transform: translateY(-2px); }
+.wo-pick.wo-locked { cursor: default; }
+.wo-pick.wo-locked .chunk { transform: none; }
+.wo-pick.wo-locked .chunk-role::after { content: " · stays last"; }
+.wo-slot { min-width: 80px; min-height: 64px; border: 2px dashed var(--border); border-radius: 12px; display: flex; transition: border-color .15s, background .15s; }
+.wo-slot.filled { min-width: 0; border-color: transparent; }
+.wo-slot.wo-target { border-color: var(--accent); border-style: solid; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.wo-slot.filled.wo-target { box-shadow: 0 0 0 3px var(--accent); }
+.wo-dragging .wo-slot:not(.filled) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.wo-result { margin-top: 14px; }
+.wo-result .sv-why { margin-top: 8px; }
+.wo-actions { gap: 10px; flex-wrap: wrap; }
+.wo-actions .btn:disabled { opacity: .45; cursor: default; }
 .sv-picker { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
 .sv-pick {
   font: inherit;
@@ -1009,6 +1044,9 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .patterns, .pat-examples { display: flex; flex-wrap: wrap; gap: 14px; }
 .patterns .pattern, .pat-examples .pattern { flex: 1 1 auto; min-width: 0; }
 .pattern { background: var(--surface-2); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+/* width 0 + min-width 100%: the tip wraps to the card instead of widening it. */
+.pattern-tip { width: 0; min-width: 100%; margin-top: auto; padding-top: 10px; border-top: 1px dashed var(--border); font-size: .85rem; line-height: 2; }
+.pattern-tip .hl { font-weight: 700; color: var(--accent); }
 .pattern-title { font-weight: 700; }
 
 .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 18px; }
@@ -1855,7 +1893,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .pr-title h1 { margin-bottom: 4px; }
 .pr-today { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pr-today b { color: var(--text); }
-.pr-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.pr-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
 .pr-tile { border: 2px solid transparent; }
 .pr-tile.active { border-color: var(--text); background: var(--surface); }
 .pr-status { display: block; margin-top: 4px; color: var(--muted); font-variant-numeric: tabular-nums; }

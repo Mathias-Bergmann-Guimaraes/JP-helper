@@ -644,8 +644,8 @@ const USAGE_GROUPS = {
   },
   "Big tests": { "big.start": "Big tests started", "big.done": "Big tests finished", "big.cert": "Certificates opened" },
   "Practice tab": {
-    "practice.roulette": "Roulettes opened", "practice.write": "Guided writing rounds started", "practice.build": "Build opened", "practice.quiz": "Quick quiz opened",
-    "quiz.particles": "Particle questions answered", "quiz.verbs": "Verb form questions answered", "quiz.adjectives": "Adjective questions answered", "quiz.patterns": "Pattern questions answered",
+    "practice.roulette": "Roulettes opened", "practice.write": "Guided writing rounds started", "practice.build": "Build opened", "practice.order": "Word order opened", "practice.quiz": "Quick quiz opened",
+    "quiz.particles": "Particle questions answered", "quiz.verbs": "Verb form questions answered", "quiz.adjectives": "Adjective questions answered", "quiz.patterns": "Pattern questions answered", "quiz.order": "Word order sentences checked",
   },
   "Reference pages": {
     "explore.sentences": "Example sentences browsed", "explore.particles": "Particles opened", "explore.verbs": "Verbs or forms switched",
