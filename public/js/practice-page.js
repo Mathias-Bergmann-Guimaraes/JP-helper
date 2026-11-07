@@ -76,7 +76,7 @@ function renderPractice() {
   $("#practice").innerHTML = `
     <div class="card hero pr-hero">
       <div class="pr-title">
-        <h1>Practice</h1>
+        <h1>Put it into <span class="accent">practice</span></h1>
         <span class="pr-today small" id="prToday"></span>
       </div>
       <p>Pick how you want to practise today. All of it earns XP towards your daily goal.</p>

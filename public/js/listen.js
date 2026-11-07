@@ -182,7 +182,7 @@ function renderListen() {
 
   box.innerHTML = `
     <div class="card hero">
-      <h1><span lang="ja">聴</span> Listen</h1>
+      <h1><span class="accent">Listen</span> to real Japanese</h1>
       <p>Real YouTube videos, podcasts and songs, measured against the course. Each one shows the grammar it uses and how much of it you've studied, so you can pick something you'll mostly follow. Songs come with their lyrics.</p>
     </div>
     <div class="card listen-bar">
