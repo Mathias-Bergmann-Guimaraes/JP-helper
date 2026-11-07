@@ -269,7 +269,7 @@ function chunkHTML(c, i) {
   const p = c.p ? `<span class="p">${c.p}</span>` : "";
   return `<div class="chunk${c.implied ? " implied" : ""}" style="--c:${r.color}" data-i="${i}" title="${r.hint}">
     <div class="chunk-jp" lang="ja">${c.implied ? "(" : ""}<span class="w">${rich(c.w)}</span>${p}${c.implied ? ")" : ""}</div>
-    <div class="chunk-role">${r.label}</div>
+    <div class="chunk-role">${c.label || r.label}</div>
   </div>`;
 }
 
@@ -295,28 +295,29 @@ function renderStructure() {
       English shows “who did what to whom” with word order — Japanese shows it with particles.
       The one fixed rule: <b>the verb comes last.</b></p>
       <div class="formula">${formula}<span class="fplus">→</span><span class="fchip solid" style="--c:${ROLES.verb.color}">Verb</span></div>
+      <p class="muted small">This is the <b>natural default</b> order. The other blocks <i>can</i> move, but moving them shifts the emphasis:
+      the block right before the verb is the one in focus.</p>
     </div>
 
     <div class="card" id="sv">
-      <div class="card-head">
-        <h2>Sentence explorer</h2>
-        <div class="pager">
-          <button class="icon-btn" id="svPrev" aria-label="Previous sentence">‹</button>
-          <span id="svCount" class="muted"></span>
-          <button class="icon-btn" id="svNext" aria-label="Next sentence">›</button>
-        </div>
+      <h2>Sentence explorer</h2>
+      <p class="muted small">Pick a rule, then hover or tap a block to find it in the English sentence.</p>
+      <div class="sv-picker" id="svPicker" role="tablist" aria-label="Sentences">
+        ${SENTENCES.map((s, i) => `<button class="sv-pick" role="tab" data-s="${i}" title="${plain(s.chunks.filter((c) => !c.implied).map((c) => c.w + c.p).join(""))}">${s.rule}</button>`).join("")}
       </div>
-      <p class="muted small">Hover or tap a block to find it in the English sentence.</p>
-      <div class="row-label">Japanese order</div>
+      <div class="row-label sv-jp-label">Japanese order <span class="pill" id="svVerdict"></span></div>
       <div class="chunks" id="svJp"></div>
       <div class="row-label">English order</div>
       <div class="chunks" id="svEn"></div>
       <div class="sv-translation" id="svTrans"></div>
       <div class="sv-actions">
-        <button class="btn" id="svShuffle">Shuffle the blocks</button>
-        <span id="svNote" class="muted small"></span>
+        <button class="btn" id="svShuffle">Try another order</button>
+        <button class="btn" id="svReset" hidden>Back to natural order</button>
       </div>
+      <div class="sv-why" id="svWhy"></div>
     </div>
+
+    <div class="card lquiz" id="woSentences"></div>
 
     <div class="card">
       <h2>Core patterns</h2>
@@ -326,6 +327,7 @@ function renderStructure() {
             <div class="pattern-title"><span lang="ja">${p.title}</span><span class="muted"> = ${p.meaning}</span></div>
             <div class="chunks compact">${p.chunks.map(chunkHTML).join("")}</div>
             <div class="muted small">${p.en}</div>
+            ${p.tip ? `<div class="pattern-tip">${rich(p.tip)}</div>` : ""}
           </div>`).join("")}
       </div>
     </div>
@@ -340,9 +342,14 @@ function renderStructure() {
       </div>
     </div>`;
 
-  $("#svPrev").onclick = () => { track("explore.sentences"); showSentence(sentIdx - 1); };
-  $("#svNext").onclick = () => { track("explore.sentences"); showSentence(sentIdx + 1); };
-  $("#svShuffle").onclick = () => { track("explore.sentences"); shuffleSentence(); };
+  $("#svPicker").onclick = (e) => {
+    const b = e.target.closest(".sv-pick");
+    if (!b) return;
+    track("explore.sentences");
+    showSentence(+b.dataset.s);
+  };
+  $("#svShuffle").onclick = () => { track("explore.sentences"); nextOrder(); };
+  $("#svReset").onclick = () => setOrder(-1);
 
   const sv = $("#sv");
   const link = (i) => {
@@ -356,40 +363,96 @@ function renderStructure() {
   sv.addEventListener("pointerleave", () => link(null));
 
   showSentence(0);
+  newOrderGame($("#woSentences"));
 }
+
+let orderIdx = -1; // -1 = the natural default order; otherwise an index into SENTENCES[i].orders
+
+const VERDICTS = {
+  natural: { cls: "good",  label: "✓ Natural order" },
+  also:    { cls: "good",  label: "✓ Also natural" },
+  shift:   { cls: "shift", label: "↔ Natural, new emphasis" },
+  awkward: { cls: "warn",  label: "⚠ Sounds unnatural" },
+  broken:  { cls: "bad",   label: "✗ Meaning breaks" },
+};
 
 function showSentence(i) {
   sentIdx = (i + SENTENCES.length) % SENTENCES.length;
+  orderIdx = -1;
   const s = SENTENCES[sentIdx];
-  $("#svCount").textContent = `${sentIdx + 1} / ${SENTENCES.length}`;
+  $$("#svPicker .sv-pick").forEach((b) => {
+    const on = +b.dataset.s === sentIdx;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", on);
+  });
   $("#svJp").innerHTML = s.chunks.map(chunkHTML).join("");
   $("#svEn").innerHTML = s.enOrder.map((i) => enChunkHTML(s.chunks[i], i)).join("");
-  $("#svTrans").innerHTML = `<span lang="ja">${ruby(s.chunks.filter((c) => !c.implied).map((c) => c.w + c.p).join(""))}。</span>
-    <span class="muted">— ${s.en}</span>${s.note ? `<div class="note">${s.note}</div>` : ""}`;
-  $("#svNote").textContent = "";
+  $("#svShuffle").hidden = !s.orders?.length;
+  showOrder();
 }
 
-// Reorder every block except the verb, animating each block from its old position (FLIP).
-function shuffleSentence() {
+// Step through the other orders, then back to the natural one.
+function nextOrder() {
+  const n = SENTENCES[sentIdx].orders?.length || 0;
+  if (n) setOrder(orderIdx + 1 >= n ? -1 : orderIdx + 1);
+}
+
+function setOrder(k) {
+  orderIdx = k;
+  moveBlocks(currentOrder());
+  showOrder();
+}
+
+function currentOrder() {
+  const s = SENTENCES[sentIdx];
+  return orderIdx < 0 ? s.chunks.map((_, i) => i) : s.orders[orderIdx].order;
+}
+
+// Verdict pill, focus marker, sentence line and explanation for the current order.
+function showOrder() {
+  const s = SENTENCES[sentIdx];
+  const alt = orderIdx < 0 ? null : s.orders[orderIdx];
+  const v = VERDICTS[alt ? (alt.v === "natural" ? "also" : alt.v) : "natural"];
+  const order = currentOrder();
+
+  const pill = $("#svVerdict");
+  pill.className = `pill ${v.cls}`;
+  pill.textContent = v.label;
+
+  // Mark the block(s) the emphasis has moved to.
+  const focus = (alt?.focus || []).map(String);
+  $$("#svJp .chunk").forEach((c) => c.classList.toggle("focus", focus.includes(c.dataset.i)));
+
+  const jp = order.map((ci, k) => {
+    const c = s.chunks[ci];
+    let t = ruby(c.w + c.p);
+    if (k === 0 && !c.p && c.role !== "verb") t += "、"; // a time word opening the sentence takes a comma
+    return c.implied ? `<span class="muted">(${t})</span>` : t;
+  }).join("");
+  const off = alt && (alt.v === "awkward" || alt.v === "broken");
+  $("#svTrans").innerHTML = `<span lang="ja"${off ? ' class="sv-off"' : ""}>${jp}。</span>
+    <span class="muted">— ${s.en}</span>${s.note ? `<div class="note">${s.note}</div>` : ""}`;
+
+  const why = $("#svWhy");
+  why.className = `sv-why ${v.cls}`;
+  why.innerHTML = alt ? rich(alt.why) : `<b>Why this order:</b> ${rich(s.why || "")}`;
+  $("#svReset").hidden = !alt;
+}
+
+// Rearrange the Japanese blocks to `order`, animating each from its old position (FLIP).
+function moveBlocks(order) {
   const row = $("#svJp");
   const kids = [...row.children];
-  const verb = kids[kids.length - 1];
-  const movable = kids.slice(0, -1);
-  if (movable.length < 2) return;
-
   const before = new Map(kids.map((k) => [k, k.getBoundingClientRect()]));
-  let order;
-  do { order = shuffle(movable.slice()); } while (order.every((k, i) => k === movable[i]));
-  order.forEach((k) => row.insertBefore(k, verb));
-
+  order.forEach((ci) => row.appendChild(kids.find((k) => k.dataset.i === String(ci))));
   kids.forEach((k) => {
     const a = before.get(k), b = k.getBoundingClientRect();
+    if (a.left === b.left && a.top === b.top) return;
     k.animate(
       [{ transform: `translate(${a.left - b.left}px, ${a.top - b.top}px)` }, { transform: "none" }],
       { duration: 550, easing: "cubic-bezier(.2,.8,.2,1)" }
     );
   });
-  $("#svNote").textContent = "Same meaning! The particles carry each block's job, so blocks can move around. Only the verb has to stay last.";
 }
 
 /* ---------------------------------------------------------------- Particles */
