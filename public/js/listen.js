@@ -355,9 +355,9 @@ function listenPointsHTML(v, keys) {
 const LISTEN_YT_ORIGIN = "https://www.youtube-nocookie.com";
 const listenLyric = { lines: [], at: -1, ready: false, cc: false, touched: 0, hello: null, cache: new Map() };
 
-// The lyrics are timed to the record, and a video can start earlier or later. Each song keeps its own
-// correction on this device: seconds to add to every line's time. Transcripts are timed to their own
-// video or audio, so only songs offer it.
+// The lyrics are timed to the record, and a video can start earlier or later. Transcripts are timed to
+// their own video or audio, but machine timings drift and captions can lead or lag a little. So each
+// item keeps its own correction on this device: seconds to add to every line's time.
 const listenShift = (v) => store.get("listenLyricShift", {})[v.id] || 0;
 
 const listenTextName = (v) => (listenIsMusic(v) ? "lyrics" : "transcript");
@@ -372,13 +372,12 @@ function listenTextHTML(v) {
     <div class="card listen-lyrics-card">
       <div class="step-label">${listenIsMusic(v) ? "Lyrics" : "Transcript"}</div>
       <div class="listen-lyrics" id="listenLyrics" lang="ja" tabindex="0"><p class="muted small">Loading the ${listenTextName(v)}…</p></div>
-      ${listenIsMusic(v) ? `
       <div class="listen-shift" id="listenShiftBox" hidden>
-        <span class="small muted">Out of time with the video?</span>
+        <span class="small muted">Out of time with the ${listenIsAudio(v) ? "audio" : "video"}?</span>
         <button class="btn" data-shift="-0.5" title="Show each line half a second sooner">Sooner</button>
         <button class="btn" data-shift="0.5" title="Show each line half a second later">Later</button>
         <span class="small muted" id="listenShiftNow"></span>
-      </div>` : ""}
+      </div>
       <p class="small muted listen-note">${note} The line being ${listenIsMusic(v) ? "sung" : "said"} lights up. Press a line to jump to it.</p>
     </div>`;
 }
@@ -448,7 +447,6 @@ async function listenStartText(v) {
     // Reading ahead shouldn't be fought: following pauses for a moment after you scroll the text.
     ["wheel", "touchmove"].forEach((type) => box.addEventListener(type, () => { listenLyric.touched = Date.now(); }, { passive: true }));
     if (audio) listenFollow(audio.currentTime);
-    if (!listenIsMusic(v)) return;
     $("#listenShiftBox").hidden = false;
     $$("[data-shift]").forEach((b) => (b.onclick = () => listenMoveShift(v, Number(b.dataset.shift))));
     listenShowShift(v);
@@ -484,6 +482,9 @@ function listenMoveShift(v, by) {
   if (!shifts[v.id]) delete shifts[v.id];
   store.set("listenLyricShift", shifts);
   listenShowShift(v);
+  listenLyric.at = -2; // redraw the current line, even while paused
+  const audio = $("#listenAudio");
+  if (audio) listenFollow(audio.currentTime);
 }
 
 function listenShowShift(v) {

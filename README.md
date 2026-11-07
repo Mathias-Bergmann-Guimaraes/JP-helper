@@ -80,7 +80,8 @@ python analyse.py --transcripts
 ```
 
 Every video and episode has a **transcript** beside the player, timed like a song's lyrics: the line
-being said lights up as it plays, the box follows along, and pressing a line jumps to it. Each comes
+being said lights up as it plays, the box follows along, pressing a line jumps to it, and **Sooner**
+and **Later** correct the timing on this device, as they do for lyrics. Each comes
 from where it already exists online, and none is made by the site. A podcast episode's is the
 transcript its own feed links to, which the member's browser loads from the podcast's host (Spotify's
 CDN for all of the current shows), so `videos-data.js` holds only its address. Those are machine-made
