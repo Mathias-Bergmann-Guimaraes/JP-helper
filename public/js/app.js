@@ -461,6 +461,141 @@ const particleSVG = (id) =>
 
 let currentParticle = "wa";
 
+const notPill = (p) => `<span class="pill bad">✗ <span lang="ja">${p}</span></span>`;
+
+// も before → after: "swap" replaces the particle, otherwise も stacks after it.
+const moRow = (word, from, rest, en, swap) => `
+  <li>
+    <div class="mo-before" lang="ja">${ruby(word)}${swap ? `<s>${from}</s>` : from}${ruby(rest)}</div>
+    <div class="mo-after" lang="ja"><span class="mo-arrow">→</span>${ruby(word)}${swap ? "" : from}<span class="hl">も</span>${ruby(rest)}</div>
+    <div class="use-en">${en}</div>
+  </li>`;
+
+// Extra boxes under a particle's card, shown only for the particles listed in `for`.
+const PARTICLE_BOXES = [
+  { for: ["wa", "ga"], html: () => `
+    <h2><span lang="ja">は</span> vs <span lang="ja">が</span> — where is the new information?</h2>
+    <p class="muted">Both can mark “who”. The difference is which part of the sentence is the <b>news</b>.</p>
+    <div class="compare">
+      <div class="cmp" style="--c:${ROLES.topic.color}">
+        <div class="cmp-q">Q: <span lang="ja">${ruby("お名前[なまえ]は？")}</span> <span class="muted">(What's your name?)</span></div>
+        <div class="cmp-s" lang="ja"><span class="old">${ruby("私[わたし]")}<span class="hl">は</span></span><span class="new">${ruby("田中[たなか]です")}</span></div>
+        <div class="cmp-en">“I'm <b>Tanaka</b>.”</div>
+        <p class="small"><b>は</b>: “me” is already known. The new info comes <b>after</b> は.</p>
+      </div>
+      <div class="cmp" style="--c:${ROLES.subject.color}">
+        <div class="cmp-q">Q: <span lang="ja">${ruby("田中[たなか]さんはどなたですか。")}</span> <span class="muted">(Which one is Tanaka?)</span></div>
+        <div class="cmp-s" lang="ja"><span class="new">${ruby("私[わたし]")}<span class="hl">が</span></span><span class="old">${ruby("田中[たなか]です")}</span></div>
+        <div class="cmp-en">“<b>I</b> am Tanaka.”</div>
+        <p class="small"><b>が</b>: the new info is the word <b>before</b> が.</p>
+      </div>
+    </div>` },
+
+  { for: ["ga", "wo"], html: () => `
+    <h2><span lang="ja">${ruby("好[す]き")}</span>, <span lang="ja">わかる</span>, <span lang="ja">ほしい</span> — why <span lang="ja">が</span> and not <span lang="ja">を</span>?</h2>
+    <p class="muted">In English “I like <b>cats</b>” makes the cats look like the object. In Japanese, <span lang="ja">${ruby("好[す]き")}</span> isn't an action you do to the cat — it <b>describes</b> the cat.</p>
+    <div class="compare">
+      <div class="cmp" style="--c:${ROLES.object.color}">
+        <div class="cmp-head">English thinking ${notPill("を")}</div>
+        <div class="cmp-s wrong" lang="ja"><span class="old">${ruby("私[わたし]は")}</span><span>${ruby("猫[ねこ]")}<span class="hl">を</span></span><span class="old">${ruby("好[す]きです")}</span></div>
+        <div class="cmp-en">I → <i>like</i> → cats</div>
+        <p class="small">Treats “like” as an action that hits the cat. Japanese doesn't see it that way.</p>
+      </div>
+      <div class="cmp" style="--c:${ROLES.subject.color}">
+        <div class="cmp-head">Japanese thinking <span class="pill good">✓ <span lang="ja">が</span></span></div>
+        <div class="cmp-s" lang="ja"><span class="old">${ruby("私[わたし]は")}</span><span class="new" data-tag="WHAT IS LIKEABLE">${ruby("猫[ねこ]")}<span class="hl">が</span></span><span class="old">${ruby("好[す]きです")}</span></div>
+        <div class="cmp-en">“As for me, <b>cats</b> are likeable.”</div>
+        <p class="small"><b>が</b> points at the thing the feeling is about. <span lang="ja">${ruby("好[す]き")}</span> works like an adjective.</p>
+      </div>
+    </div>
+    <div class="step-label">These all take <span lang="ja">が</span> — feelings, skills, wanting and having</div>
+    <ul class="only-list" style="--c:${ROLES.subject.color}">
+      <li><span class="use-label">Like / dislike</span><span lang="ja">${rich("猫[ねこ]{が}好[す]きです。")}</span><span class="use-en">I like cats.</span></li>
+      <li><span class="use-label">Good / bad at</span><span lang="ja">${rich("料理[りょうり]{が}上手[じょうず]です。")}</span><span class="use-en">I'm good at cooking.</span></li>
+      <li><span class="use-label">Understand</span><span lang="ja">${rich("日本語[にほんご]{が}わかります。")}</span><span class="use-en">I understand Japanese.</span></li>
+      <li><span class="use-label">Want</span><span lang="ja">${rich("車[くるま]{が}ほしいです。")}</span><span class="use-en">I want a car.</span></li>
+      <li><span class="use-label">Can do</span><span lang="ja">${rich("英語[えいご]{が}できます。")}</span><span class="use-en">I can speak English.</span></li>
+      <li><span class="use-label">Have</span><span lang="ja">${rich("時間[じかん]{が}あります。")}</span><span class="use-en">I have time.</span></li>
+    </ul>
+    <div class="tip" style="--c:${ROLES.subject.color}"><b>Rule of thumb</b> If the English verb is a feeling, a skill or having — like, good at, understand, want, can, have — Japanese uses <span lang="ja">が</span>.</div>` },
+
+  { for: ["he", "ni"], html: () => `
+    <h2><span lang="ja">へ</span> vs <span lang="ja">に</span> — the journey or the landing?</h2>
+    <p class="muted">With <b lang="ja">${ruby("行[い]く")}・${ruby("来[く]る")}・${ruby("帰[かえ]る")}</b> both work and mean the same thing. The difference is only what you picture.</p>
+    <div class="compare">
+      <div class="cmp" style="--c:${ROLES.dir.color}">
+        <div class="cmp-pic">${particleSVG("he")}</div>
+        <div class="cmp-s" lang="ja"><span class="new" data-tag="DIRECTION">${ruby("東京[とうきょう]")}<span class="hl">へ</span></span><span class="old">${ruby("行[い]きます")}</span></div>
+        <div class="cmp-en">“I'm heading <b>toward</b> Tokyo.”</div>
+        <p class="small"><b>へ</b>: the arrow — you're on your way, facing that direction.</p>
+      </div>
+      <div class="cmp" style="--c:${ROLES.point.color}">
+        <div class="cmp-pic">${particleSVG("ni")}</div>
+        <div class="cmp-s" lang="ja"><span class="new" data-tag="ARRIVAL POINT">${ruby("東京[とうきょう]")}<span class="hl">に</span></span><span class="old">${ruby("行[い]きます")}</span></div>
+        <div class="cmp-en">“I'm going <b>to</b> Tokyo.”</div>
+        <p class="small"><b>に</b>: the pin — you land exactly there.</p>
+      </div>
+    </div>
+    <div class="step-label">Only <span lang="ja">に</span> works here — there's no movement, so there's no direction</div>
+    <ul class="only-list" style="--c:${ROLES.point.color}">
+      <li><span class="use-label">Exact time</span><span lang="ja">${rich("7時[しちじ]{に}起[お]きます。")}</span>${notPill("へ")}</li>
+      <li><span class="use-label">Recipient</span><span lang="ja">${rich("友達[ともだち]{に}あげます。")}</span>${notPill("へ")}</li>
+      <li><span class="use-label">Where something is</span><span lang="ja">${rich("部屋[へや]{に}猫[ねこ]がいます。")}</span>${notPill("へ")}</li>
+    </ul>
+    <div class="tip" style="--c:${ROLES.dir.color}"><b>Rule of thumb</b> Not sure? Use <span lang="ja">に</span> — it's right in every case above. <span lang="ja">へ</span> only ever goes with movement.</div>` },
+
+  { for: ["de", "ni"], html: () => `
+    <h2><span lang="ja">で</span> vs <span lang="ja">に</span> for places — doing or being?</h2>
+    <p class="muted">Same place, different particle. Look at the <b>verb</b>: is something happening there, or is something just there?</p>
+    <div class="compare">
+      <div class="cmp" style="--c:${ROLES.place.color}">
+        <div class="cmp-pic">${particleSVG("de")}</div>
+        <div class="cmp-s" lang="ja"><span class="new" data-tag="WHERE IT HAPPENS">${ruby("図書館[としょかん]")}<span class="hl">で</span></span><span class="old">${ruby("勉強[べんきょう]します")}</span></div>
+        <div class="cmp-en">“I <b>study</b> at the library.”</div>
+        <p class="small"><b>で</b>: the stage — an action takes place there (study, eat, work, play).</p>
+      </div>
+      <div class="cmp" style="--c:${ROLES.point.color}">
+        <div class="cmp-pic">${particleSVG("ni")}</div>
+        <div class="cmp-s" lang="ja"><span class="new" data-tag="WHERE IT IS">${ruby("図書館[としょかん]")}<span class="hl">に</span></span><span class="old">${ruby("います")}</span></div>
+        <div class="cmp-en">“I'm <b>at</b> the library.”</div>
+        <p class="small"><b>に</b>: the pin — someone or something simply is there (いる, ある, live).</p>
+      </div>
+    </div>
+    <div class="step-label">Same place, sorted by the verb</div>
+    <ul class="only-list">
+      <li style="--c:${ROLES.place.color}"><span class="use-label">Doing → で</span><span lang="ja">${rich("公園[こうえん]{で}遊[あそ]びます。")}</span><span class="use-en">I play in the park.</span></li>
+      <li style="--c:${ROLES.point.color}"><span class="use-label">Being → に</span><span lang="ja">${rich("公園[こうえん]{に}子供[こども]がいます。")}</span><span class="use-en">There are kids in the park.</span></li>
+      <li style="--c:${ROLES.place.color}"><span class="use-label">Doing → で</span><span lang="ja">${rich("東京[とうきょう]{で}働[はたら]いています。")}</span><span class="use-en">I work in Tokyo.</span></li>
+      <li style="--c:${ROLES.point.color}"><span class="use-label">Being → に</span><span lang="ja">${rich("東京[とうきょう]{に}住[す]んでいます。")}</span><span class="use-en">I live in Tokyo.</span></li>
+    </ul>
+    <div class="tip" style="--c:${ROLES.place.color}"><b>Rule of thumb</b> <span lang="ja">いる・ある・${ruby("住[す]む")}</span> → <span lang="ja">に</span>. Almost every other verb → <span lang="ja">で</span>.</div>` },
+
+  { for: ["mo"], html: () => `
+    <h2>Where does <span lang="ja">も</span> go?</h2>
+    <p class="muted"><span lang="ja">も</span> <b>replaces</b> three particles, but <b>stacks after</b> all the others.</p>
+    <div class="compare">
+      <div class="cmp" style="--c:${ROLES.also.color}">
+        <div class="cmp-head">Swap: <span lang="ja">は・が・を</span> → <span lang="ja">も</span></div>
+        <p class="small">The old particle disappears.</p>
+        <ul class="mo-list">
+          ${moRow("私[わたし]", "は", "学生[がくせい]です。", "I'm a student too.", true)}
+          ${moRow("パン", "を", "食[た]べます。", "I eat bread too.", true)}
+          ${moRow("犬[いぬ]", "が", "好[す]きです。", "I like dogs too.", true)}
+        </ul>
+      </div>
+      <div class="cmp" style="--c:${ROLES.also.color}">
+        <div class="cmp-head">Stack: <span lang="ja">に・で・へ・と</span> + <span lang="ja">も</span></div>
+        <p class="small">The old particle stays, and <span lang="ja">も</span> goes right after it.</p>
+        <ul class="mo-list">
+          ${moRow("京都[きょうと]", "に", "行[い]きました。", "I went to Kyoto too.", false)}
+          ${moRow("家[いえ]", "で", "勉強[べんきょう]します。", "I study at home too.", false)}
+          ${moRow("先生[せんせい]", "と", "話[はな]しました。", "I talked with the teacher too.", false)}
+        </ul>
+      </div>
+    </div>
+    <div class="tip" style="--c:${ROLES.also.color}"><b>Never</b> <span lang="ja">はも・がも・をも</span>. But <span lang="ja">にも・でも・へも・とも</span> are all fine.</div>` },
+];
+
 function renderParticles() {
   $("#particles").innerHTML = `
     <div class="card hero">
@@ -479,24 +614,7 @@ function renderParticles() {
 
     <div class="card pdetail" id="pDetail"></div>
 
-    <div class="card">
-      <h2><span lang="ja">は</span> vs <span lang="ja">が</span> — where is the new information?</h2>
-      <p class="muted">Both can mark “who”. The difference is which part of the sentence is the <b>news</b>.</p>
-      <div class="compare">
-        <div class="cmp" style="--c:${ROLES.topic.color}">
-          <div class="cmp-q">Q: <span lang="ja">${ruby("お名前[なまえ]は？")}</span> <span class="muted">(What's your name?)</span></div>
-          <div class="cmp-s" lang="ja"><span class="old">${ruby("私[わたし]")}<span class="hl">は</span></span><span class="new">${ruby("田中[たなか]です")}</span></div>
-          <div class="cmp-en">“I'm <b>Tanaka</b>.”</div>
-          <p class="small"><b>は</b>: “me” is already known. The new info comes <b>after</b> は.</p>
-        </div>
-        <div class="cmp" style="--c:${ROLES.subject.color}">
-          <div class="cmp-q">Q: <span lang="ja">${ruby("田中[たなか]さんはどなたですか。")}</span> <span class="muted">(Which one is Tanaka?)</span></div>
-          <div class="cmp-s" lang="ja"><span class="new">${ruby("私[わたし]")}<span class="hl">が</span></span><span class="old">${ruby("田中[たなか]です")}</span></div>
-          <div class="cmp-en">“<b>I</b> am Tanaka.”</div>
-          <p class="small"><b>が</b>: the new info is the word <b>before</b> が.</p>
-        </div>
-      </div>
-    </div>`;
+    <div id="pCompare"></div>`;
 
   $$(".ptile").forEach((b) => (b.onclick = () => { track("explore.particles"); showParticle(b.dataset.id, true); }));
   showParticle(currentParticle);
@@ -532,6 +650,12 @@ function showParticle(id, scroll) {
   d.classList.remove("enter");
   void d.offsetWidth; // restart the entry animation
   d.classList.add("enter");
+
+  $("#pCompare").innerHTML = PARTICLE_BOXES
+    .filter((b) => b.for.includes(id))
+    .map((b) => `<div class="card">${b.html()}</div>`)
+    .join("");
+
   if (scroll && d.getBoundingClientRect().top > window.innerHeight * 0.6) {
     d.scrollIntoView({ behavior: "smooth", block: "start" });
   }
