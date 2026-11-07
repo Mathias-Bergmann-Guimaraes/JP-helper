@@ -287,9 +287,25 @@ function gapQ(d) {
   };
 }
 
-// Show the whole sentence, pick its English. Wrong answers are other sentences from the same lesson.
+// An “A: … B: …” exchange rather than a single sentence.
+const isDialogue = (en) => /^\s*A\s*[:：]/.test(en);
+
+// Show the whole sentence, pick its English. Wrong answers are other sentences from the same lesson,
+// of the same shape: a dialogue gets dialogues and a sentence gets sentences, so the shape alone
+// never gives the answer away. A lesson with too few dialogues borrows them from earlier lessons
+// first, then later ones.
 function meaningQ(d, all) {
-  const wrong = shuffle(all.filter((x) => x.en !== d.en)).slice(0, 3).map((x) => x.en);
+  const shape = isDialogue(d.en);
+  const fits = (en) => en !== d.en && isDialogue(en) === shape;
+  const own = shuffle([...new Set(all.map((x) => x.en).filter(fits))]);
+  let wrong = own.slice(0, 3);
+  if (wrong.length < 3) {
+    const l = LESSONS.find((x) => x.points.includes(d.point));
+    const at = l ? l.n : 0;
+    const from = (keep) => shuffle([...new Set(Object.entries(DRILLS)
+      .filter(([n]) => +n !== at && keep(+n)).flatMap(([, list]) => list.map((x) => x[1])).filter(fits))]);
+    wrong = [...new Set([...wrong, ...from((n) => n < at), ...from((n) => n > at)])].slice(0, 3);
+  }
   const c = ROLES[d.point.role].color;
   return {
     kind: "What does it mean?",
